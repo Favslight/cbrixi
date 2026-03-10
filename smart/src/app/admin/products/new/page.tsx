@@ -11,7 +11,8 @@ interface FormState {
   name: string;
   price: string;
   description: string;
-  image: string;
+  image: File | null;
+  imagePreview: string;
   category: string;
   minimum_deposit_percentage: number;
   installment_duration_months: number;
@@ -25,10 +26,11 @@ interface FormState {
 export default function NewProduct() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>({
-    name: '', 
-    price: '', 
-    description: '', 
-    image: '', 
+    name: '',
+    price: '',
+    description: '',
+    image: null,
+    imagePreview: '',
     category: 'Smart Watches',
     minimum_deposit_percentage: 20,
     installment_duration_months: 12,
@@ -43,9 +45,9 @@ export default function NewProduct() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    setForm((prev) => ({ 
-      ...prev, 
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : type === 'number' ? Number(value) : value 
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : type === 'number' ? Number(value) : value
     }));
     setError('');
   };
@@ -53,27 +55,46 @@ export default function NewProduct() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setForm((prev) => ({ ...prev, image: event.target?.result as string }));
-      };
-      reader.readAsDataURL(file);
+      setForm((prev) => ({
+        ...prev,
+        image: file,
+        imagePreview: URL.createObjectURL(file)
+      }));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price.trim() || !form.description.trim() || !form.image) {
+    if (!form.name.trim() || !form.price.toString().trim() || !form.description.trim() || !form.image) {
       setError('Please fill in all required fields, including uploading an image.');
       return;
     }
     setLoading(true);
     try {
       const token = localStorage.getItem('adminToken') ?? '';
-      const res = await fetch('/api/admin/products', {
+
+      const formData = new FormData();
+      formData.append('name', form.name);
+      formData.append('price', form.price.toString());
+      formData.append('description', form.description);
+      formData.append('category', form.category);
+      formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage.toString());
+      formData.append('installment_duration_months', form.installment_duration_months.toString());
+      formData.append('fine_percentage_on_default', form.fine_percentage_on_default.toString());
+      formData.append('stock', form.stock.toString());
+      formData.append('installment_enabled', form.installment_enabled.toString());
+      formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required.toString());
+      formData.append('grace_period_days', form.grace_period_days.toString());
+
+      // Append file last to ensure fastify-multipart parses text fields first
+      formData.append('image', form.image);
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+      const res = await fetch(`${API_URL}/admin/products`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
+        headers: { Authorization: `Bearer ${token}` }, // Let browser set Content-Type with boundary for FormData
+        body: formData,
       });
       const data = await res.json();
       if (data.success) {
@@ -132,7 +153,7 @@ export default function NewProduct() {
         {/* Price */}
         <div>
           <label className={labelClass}>Price <span className="text-red-400">*</span></label>
-          <input name="price" value={form.price} onChange={handleChange} placeholder="e.g. $299" className={inputClass} required />
+          <input name="price" value={form.price} onChange={handleChange} placeholder="e.g. 299" className={inputClass} required />
         </div>
 
         {/* Category */}
@@ -200,9 +221,10 @@ export default function NewProduct() {
         <div>
           <label className={labelClass}>Product Image <span className="text-red-400">*</span></label>
           <input type="file" accept="image/*" onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" required />
-          {form.image && (
+          {form.imagePreview && (
             <div className="mt-3">
-              <img src={form.image} alt="Preview" className="w-24 h-24 object-contain rounded-lg bg-white/5 p-2" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={form.imagePreview} alt="Preview" className="w-24 h-24 object-contain rounded-lg bg-white/5 p-2" />
             </div>
           )}
         </div>
@@ -229,3 +251,4 @@ export default function NewProduct() {
     </div>
   );
 }
+

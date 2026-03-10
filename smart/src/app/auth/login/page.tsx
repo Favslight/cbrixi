@@ -46,9 +46,27 @@ export default function Login() {
         setError("Connection error. Please try again.");
       }
     } else {
-      // Regular user login placeholder
-      console.log("User login:", formData);
-      router.push("/");
+      // User login using fastify backend
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+        const res = await fetch(`${API_URL}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.email, password: formData.password }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          localStorage.setItem("userToken", data.token);
+          if (data.user) {
+            localStorage.setItem("userData", JSON.stringify(data.user));
+          }
+          router.push("/marketplace");
+        } else {
+          setError(data.message ?? "Invalid user credentials.");
+        }
+      } catch {
+        setError("Connection error. Please try again.");
+      }
     }
 
     setLoading(false);
@@ -67,11 +85,10 @@ export default function Login() {
           <motion.button
             key={t}
             onClick={() => { setTab(t); setError(""); }}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === t
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t
                 ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
                 : "text-white/50 hover:text-white/80"
-            }`}
+              }`}
             whileTap={{ scale: 0.97 }}
           >
             {t === "user" ? "👤 User Login" : "🛡️ Admin Login"}
@@ -96,8 +113,8 @@ export default function Login() {
               {tab === "admin"
                 ? "Sign in to manage products and settings."
                 : <>Don&apos;t have an account?{" "}
-                    <Link href="/auth/signup" className="text-blue-400 hover:text-blue-300 hover:underline font-medium">Sign up →</Link>
-                  </>}
+                  <Link href="/auth/signup" className="text-blue-400 hover:text-blue-300 hover:underline font-medium">Sign up →</Link>
+                </>}
             </p>
           </motion.div>
         </AnimatePresence>

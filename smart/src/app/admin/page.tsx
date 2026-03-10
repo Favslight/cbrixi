@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     fetch('/api/admin/products', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => setProductCount(d.products?.length ?? 0))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const stats: Stat[] = [
@@ -61,7 +61,7 @@ export default function AdminDashboard() {
       {/* Quick actions */}
       <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45, duration: 0.5 }}>
         <h2 className="text-white font-semibold text-lg mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <Link href="/admin/products/new">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
               className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold cursor-pointer shadow-lg shadow-blue-500/20">
@@ -73,7 +73,21 @@ export default function AdminDashboard() {
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
               className="flex items-center gap-4 px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors">
               <span className="text-2xl">📋</span>
-              <div><p className="font-semibold">Manage Products</p><p className="text-white/50 text-xs font-normal">View & delete listings</p></div>
+              <div><p className="font-semibold">Manage Products</p><p className="text-white/50 text-xs font-normal">View &amp; delete listings</p></div>
+            </motion.div>
+          </Link>
+          <Link href="/admin/users">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-4 px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-purple-500/40 transition-colors">
+              <span className="text-2xl">👥</span>
+              <div><p className="font-semibold">View Users</p><p className="text-white/50 text-xs font-normal">Orders &amp; instalment details</p></div>
+            </motion.div>
+          </Link>
+          <Link href="/admin/payments">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-4 px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-yellow-500/40 transition-colors">
+              <span className="text-2xl">⏳</span>
+              <div><p className="font-semibold">Pending Payments</p><p className="text-white/50 text-xs font-normal">Approve bank transfers</p></div>
             </motion.div>
           </Link>
         </div>

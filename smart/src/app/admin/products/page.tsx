@@ -19,7 +19,8 @@ export default function AdminProducts() {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
-    const res = await fetch('/api/admin/products', { headers: { Authorization: `Bearer ${token}` } });
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_URL}/admin/products`, { headers: { Authorization: `Bearer ${token}` } });
     const d = await res.json();
     setProducts(d.products ?? []);
     setLoading(false);
@@ -30,7 +31,8 @@ export default function AdminProducts() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this product?')) return;
     setDeletingId(id);
-    await fetch(`/api/admin/products?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    await fetch(`${API_URL}/admin/products/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     setProducts((p) => p.filter((x) => x.id !== id));
     setDeletingId(null);
   };

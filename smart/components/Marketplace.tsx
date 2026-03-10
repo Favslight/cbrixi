@@ -5,29 +5,40 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Product } from '@/lib/productsStore';
 
+import { useRouter } from 'next/navigation';
+
 export default function Marketplace() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const router = useRouter();
 
     useEffect(() => {
-        fetch('/api/products')
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            router.push('/auth/login');
+            return;
+        }
+
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+        fetch(`${API_URL}/products`)
             .then((res) => res.json())
             .then((data) => {
                 setProducts(data.products || []);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
-    }, []);
+    }, [router]);
 
     // Lock scroll when modal is open
-    if (typeof window !== 'undefined') {
+    useEffect(() => {
         if (selectedProduct) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
-    }
+        return () => { document.body.style.overflow = 'auto'; };
+    }, [selectedProduct]);
 
     return (
         <section id="marketplace" className="relative py-28 overflow-hidden bg-[#07070a]">
@@ -192,21 +203,47 @@ export default function Marketplace() {
                                         </p>
 
                                         <div className="flex gap-4">
-                                            <button className="flex-1 py-4 px-6 rounded-2xl font-bold text-white bg-gray-900 hover:bg-black hover:shadow-xl transition-all active:scale-95 text-center flex justify-center items-center gap-2">
+                                            <button
+                                                onClick={async (e) => {
+                                                    const btn = e.currentTarget;
+                                                    const originalText = btn.innerHTML;
+                                                    btn.innerHTML = 'Adding...';
+                                                    btn.disabled = true;
+                                                    try {
+                                                        const token = localStorage.getItem('userToken');
+                                                        if (!token) {
+                                                            router.push('/auth/login');
+                                                            return;
+                                                        }
+                                                        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+                                                        await fetch(`${API_URL}/cart/add`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                                            body: JSON.stringify({ product_id: selectedProduct.id, quantity: 1 })
+                                                        });
+                                                        btn.innerHTML = 'Added! ✓';
+                                                        setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+                                                    } catch {
+                                                        btn.innerHTML = 'Error';
+                                                        setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+                                                    }
+                                                }}
+                                                className="flex-1 py-4 px-6 rounded-2xl font-bold text-white bg-gray-900 hover:bg-black hover:shadow-xl transition-all active:scale-95 text-center flex justify-center items-center gap-2">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
                                                 </svg>
                                                 Add to Cart
                                             </button>
                                             <button className="py-4 px-4 rounded-2xl border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 transition-all active:scale-95">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </motion.div>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                </div>
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

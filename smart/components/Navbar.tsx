@@ -72,7 +72,7 @@ export default function Navbar() {
             {/* Right icons */}
             <div className="hidden md:flex items-center gap-3">
               <ThemeSwitcher />
-              <IconButton href="#cart" label="Cart" Icon={CartIcon} />
+              <IconButton href="/cart" label="Cart" Icon={CartIcon} />
               <IconButton href="#account" label="Account" Icon={UserIcon} />
               <motion.a
                 href="/auth/login"
@@ -122,7 +122,7 @@ export default function Navbar() {
                 </motion.a>
               ))}
               <div className="flex gap-3 pt-2 border-t border-white/10 mt-2">
-                <a href="#cart" className="text-white/60 hover:text-white transition-colors"><CartIcon /></a>
+                <a href="/cart" className="text-white/60 hover:text-white transition-colors"><CartIcon /></a>
                 <a href="#account" className="text-white/60 hover:text-white transition-colors"><UserIcon /></a>
               </div>
             </div>

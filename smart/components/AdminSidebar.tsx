@@ -8,6 +8,8 @@ import CbrixiLogo from './CbrixiLogo';
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: GridIcon },
   { label: 'Products', href: '/admin/products', icon: BoxIcon },
+  { label: 'Users', href: '/admin/users', icon: UsersIcon },
+  { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
 ];
 
 export default function AdminSidebar() {
@@ -38,11 +40,10 @@ export default function AdminSidebar() {
             <Link key={href} href={href}>
               <motion.div
                 whileHover={{ x: 4 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                  active
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${active
                     ? 'bg-gradient-to-r from-blue-500/20 to-purple-600/20 text-white border border-blue-500/30'
                     : 'text-white/50 hover:text-white hover:bg-white/5'
-                }`}
+                  }`}
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-blue-400' : ''}`} />
                 {label}
@@ -88,6 +89,20 @@ function BoxIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+function UsersIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+function PaymentsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+    </svg>
+  );
+}
 function LogoutIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -95,3 +110,4 @@ function LogoutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+

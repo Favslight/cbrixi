@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import CbrixiLogo from "../../../components/CbrixiLogo";
 
 const authImages = [
   { src: "/images/laptop.png", alt: "Premium CBRIXI Laptop" },
@@ -35,15 +36,8 @@ export default function AuthLayout({
         {/* Left Side - Image Showcase */}
         <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center p-12 bg-gradient-to-br from-gray-900 via-black to-gray-950 border-r border-white/5">
           {/* Logo overlay */}
-          <div className="absolute top-8 left-10 z-20 flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeWidth="0" />
-              </svg>
-            </div>
-            <span className="text-xl font-bold tracking-widest text-white">
-              CBRI<span className="text-blue-400">XI</span>
-            </span>
+          <div className="absolute top-8 left-10 z-20">
+            <CbrixiLogo />
           </div>
 
           {/* Marketing Copy */}

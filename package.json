@@ -1,0 +1,11 @@
+{
+  "name": "cbrixi-root",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd smart && npm run dev",
+    "build": "cd smart && npm run build",
+    "start": "cd smart && npm run start",
+    "lint": "cd smart && npm run lint"
+  }
+}

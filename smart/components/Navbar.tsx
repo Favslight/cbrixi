@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ThemeSwitcher from './ThemeSwitcher';
+import CbrixiLogo from './CbrixiLogo';
 
 const navLinks = [
   { label: 'Home', href: '/' },
@@ -59,20 +60,7 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <motion.a
-              href="#"
-              className="flex items-center gap-2 group"
-              whileHover={{ scale: 1.02 }}
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeWidth="0" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold tracking-widest text-white">
-                CBRI<span className="text-blue-400">XI</span>
-              </span>
-            </motion.a>
+            <CbrixiLogo />
 
             {/* Desktop nav links */}
             <div className="hidden md:flex items-center gap-1">

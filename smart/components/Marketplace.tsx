@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Product } from '@/lib/productsStore';
 
@@ -21,10 +20,16 @@ export default function Marketplace() {
         }
 
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
-        fetch(`${API_URL}/products`)
+        fetch(`${API_URL}/products`, { headers: { Authorization: `Bearer ${token}` } })
             .then((res) => res.json())
             .then((data) => {
-                setProducts(data.products || []);
+                const mappedProducts = (data.products || []).map((p: any) => ({
+                    ...p,
+                    image: p.image_url || p.image || '/images/smartwatch.png',
+                    gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
+                    price: p.price ? (typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '') ? `$${Number(p.price).toLocaleString()}` : p.price) : 'N/A'
+                }));
+                setProducts(mappedProducts);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
@@ -92,11 +97,10 @@ export default function Marketplace() {
                             >
                                 {/* Product Image Cover */}
                                 <div className="absolute inset-0 z-0">
-                                    <Image
+                                    <img
                                         src={product.image}
                                         alt={product.name}
-                                        fill
-                                        className="object-cover group-hover:scale-110 transition-transform duration-700"
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                     />
                                 </div>
 
@@ -171,11 +175,10 @@ export default function Marketplace() {
                                         transition={{ delay: 0.2 }}
                                         className="relative w-full h-full drop-shadow-2xl z-10"
                                     >
-                                        <Image
+                                        <img
                                             src={selectedProduct.image}
                                             alt={selectedProduct.name}
-                                            fill
-                                            className="object-contain"
+                                            className="w-full h-full object-contain"
                                         />
                                     </motion.div>
                                 </div>

@@ -26,18 +26,20 @@ export default function Login() {
     setLoading(true);
 
     if (tab === "admin") {
-      // Calls POST /api/admin/login — which mirrors the Fastify adminLoginHandler
-      // from lib/adminRoutes.ts (same validation logic, same credentials)
       try {
-        const res = await fetch("/api/admin/login", {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+        const res = await fetch(`${API_URL}/admin/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: formData.email, password: formData.password }),
         });
         const data = await res.json();
-        if (data.success) {
+        
+        // The real backend returns { token, admin: { ... } } on success, not `success: true`.
+        // If res.ok is true and we have a token, the login was successful.
+        if (res.ok && data.token) {
           localStorage.setItem("adminToken", data.token);
-          localStorage.setItem("adminName", data.admin.name);
+          localStorage.setItem("adminName", data.admin?.email ?? "Admin");
           router.push("/admin");
         } else {
           setError(data.message ?? "Invalid admin credentials.");

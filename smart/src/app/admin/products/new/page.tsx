@@ -89,7 +89,7 @@ export default function NewProduct() {
       // Append file last to ensure fastify-multipart parses text fields first
       formData.append('image', form.image);
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
 
       const res = await fetch(`${API_URL}/admin/products`, {
         method: 'POST',

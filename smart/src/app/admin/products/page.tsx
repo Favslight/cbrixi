@@ -19,10 +19,14 @@ export default function AdminProducts() {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
     const res = await fetch(`${API_URL}/admin/products`, { headers: { Authorization: `Bearer ${token}` } });
     const d = await res.json();
-    setProducts(d.products ?? []);
+    const mappedProducts = (d.products || []).map((p: any) => ({
+      ...p,
+      image: p.image_url || p.image || '/images/smartwatch.png'
+    }));
+    setProducts(mappedProducts);
     setLoading(false);
   }, [token]);
 
@@ -31,7 +35,7 @@ export default function AdminProducts() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this product?')) return;
     setDeletingId(id);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
     await fetch(`${API_URL}/admin/products/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     setProducts((p) => p.filter((x) => x.id !== id));
     setDeletingId(null);

@@ -44,19 +44,25 @@ export default function AdminPaymentsPage() {
     const [search, setSearch] = useState('');
     const [confirmId, setConfirmId] = useState<string | null>(null);
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') ?? '' : '';
-
     const fetchPayments = useCallback(async () => {
         setLoading(true);
+        setError('');
         try {
+            const token = localStorage.getItem('adminToken') ?? '';
             const res = await fetch(`${API_URL}/admin/payments/pending`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                setError(errData.message || `Request failed: ${res.status}`);
+                setLoading(false);
+                return;
+            }
             const data = await res.json();
-            setPayments(Array.isArray(data) ? data : data.payments || []);
-        } catch { setError('Connection error.'); }
+            setPayments(Array.isArray(data) ? data : data.payments ?? data.data ?? []);
+        } catch { setError('Connection error. Check your network or server.'); }
         setLoading(false);
-    }, [token]);
+    }, []);
 
     useEffect(() => { fetchPayments(); }, [fetchPayments]);
 
@@ -65,6 +71,7 @@ export default function AdminPaymentsPage() {
         setApprovingId(id);
         setError('');
         try {
+            const token = localStorage.getItem('adminToken') ?? '';
             const res = await fetch(`${API_URL}/admin/payments/${id}/approve`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` }

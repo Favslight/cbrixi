@@ -138,10 +138,10 @@ function PaymentContent() {
                     <div>
                         <p className="text-white/50 text-sm mb-1">{mode === 'INSTALLMENT' ? 'Deposit Due Today' : 'Total Due'}</p>
                         <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                            ${amountDue.toFixed(2)}
+                            ₦{amountDue.toFixed(2)}
                         </p>
                         {mode === 'INSTALLMENT' && (
-                            <p className="text-white/40 text-xs mt-1">Remaining balance: ${(total - deposit).toFixed(2)}</p>
+                            <p className="text-white/40 text-xs mt-1">Remaining balance: ₦{(total - deposit).toFixed(2)}</p>
                         )}
                     </div>
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center">

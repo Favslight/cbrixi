@@ -1,5 +1,14 @@
 import Navbar from '../../../components/Navbar';
 import Marketplace from '../../../components/Marketplace';
+import Link from 'next/link';
+import { products as allProducts } from '@/lib/productsStore';
+
+const CATEGORY_SLUGS: Record<string, string> = {
+    'Smart Watches': 'smart-watches',
+    'Smart Home': 'smart-home',
+    'Audio Devices': 'audio-devices',
+    'Accessories': 'accessories',
+};
 
 export default function MarketplacePage() {
     return (
@@ -53,13 +62,16 @@ function Footer() {
                     <div>
                         <h4 className="text-[#07070a] dark:text-white font-semibold mb-4 text-sm tracking-wide uppercase transition-colors duration-300">Categories</h4>
                         <ul className="space-y-2">
-                            {['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories'].map((c) => (
-                                <li key={c}>
-                                    <a href="/#categories" className="text-[#07070a]/60 dark:text-white/40 hover:text-blue-500 dark:hover:text-white text-sm transition-colors duration-300">
-                                        {c}
-                                    </a>
-                                </li>
-                            ))}
+                            {Array.from(new Set(allProducts.map((p) => p.category))).map((c) => {
+                                const slug = CATEGORY_SLUGS[c] || c.toLowerCase().replace(/\s+/g, '-');
+                                return (
+                                    <li key={c}>
+                                        <Link href={`/marketplace/${slug}`} className="text-[#07070a]/60 dark:text-white/40 hover:text-blue-500 dark:hover:text-white text-sm transition-colors duration-300">
+                                            {c}
+                                        </Link>
+                                    </li>
+                                );
+                            })}
                         </ul>
                     </div>
 

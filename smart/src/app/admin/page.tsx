@@ -23,7 +23,7 @@ export default function AdminDashboard() {
 
   const stats: Stat[] = [
     { label: 'Total Products', value: String(productCount), sub: 'In the catalogue', icon: '📦', color: 'from-blue-500/20 to-blue-900/10 border-blue-500/20' },
-    { label: 'Total Revenue', value: '$24,650', sub: 'Placeholder figure', icon: '💰', color: 'from-emerald-500/20 to-emerald-900/10 border-emerald-500/20' },
+    { label: 'Total Revenue', value: '₦24,650', sub: 'Placeholder figure', icon: '💰', color: 'from-emerald-500/20 to-emerald-900/10 border-emerald-500/20' },
     { label: 'Happy Customers', value: '10,000+', sub: 'Across all regions', icon: '😊', color: 'from-purple-500/20 to-purple-900/10 border-purple-500/20' },
     { label: 'Active Sessions', value: '1', sub: 'You are logged in', icon: '🔒', color: 'from-orange-500/20 to-orange-900/10 border-orange-500/20' },
   ];

@@ -196,7 +196,7 @@ export default function CartPage() {
                                             <Link href={`/marketplace`} className="text-xl font-bold hover:text-blue-400 transition-colors">
                                                 {item.name}
                                             </Link>
-                                            <p className="text-2xl font-semibold text-white/90 mt-1">${parseFloat(item.price).toFixed(2)}</p>
+                                            <p className="text-2xl font-semibold text-white/90 mt-1">₦{parseFloat(item.price).toFixed(2)}</p>
 
                                             {item.installment_enabled && (
                                                 <div className="inline-flex mt-2 px-3 py-1 bg-green-500/10 border border-green-500/20 text-green-400 text-xs rounded-full font-medium">
@@ -260,7 +260,7 @@ export default function CartPage() {
                                 <div className="space-y-4 mb-6">
                                     <div className="flex justify-between text-white/70">
                                         <span>Subtotal ({cartItems.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
-                                        <span className="text-white font-medium">${calculateTotal().toFixed(2)}</span>
+                                        <span className="text-white font-medium">₦{calculateTotal().toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-white/70">
                                         <span>Estimated Tax</span>
@@ -274,7 +274,7 @@ export default function CartPage() {
                                     <div className="flex justify-between items-center pt-2">
                                         <span className="text-lg font-bold">Total</span>
                                         <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                                            ${calculateTotal().toFixed(2)}
+                                            ₦{calculateTotal().toFixed(2)}
                                         </span>
                                     </div>
                                 </div>

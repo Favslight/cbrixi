@@ -1,6 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { slugify } from '@/lib/slugify';
 
 interface Category {
     icon: string;
@@ -145,10 +147,18 @@ function CategoryCard({ category }: { category: Category }) {
                     initial={{ x: -4 }}
                     whileHover={{ x: 0 }}
                 >
-                    Explore{' '}
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
+                    {/* Use explicit slug mapping to ensure hrefs are correct */}
+                    <Link href={`/marketplace/${{
+                        'Smart Watches': 'smart-watches',
+                        'Smart Home': 'smart-home',
+                        'Audio Devices': 'audio-devices',
+                        'Accessories': 'accessories'
+                    }[category.title]}`} className="flex items-center gap-1">
+                        <span>Explore</span>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </Link>
                 </motion.div>
             </div>
         </motion.div>

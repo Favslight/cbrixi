@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Product } from '@/lib/productsStore';
+import { Product, products as localProducts } from '@/lib/productsStore';
 
 import { useRouter } from 'next/navigation';
 
@@ -14,25 +14,34 @@ export default function Marketplace() {
 
     useEffect(() => {
         const token = localStorage.getItem('userToken');
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
 
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
-        fetch(`${API_URL}/products`, { headers: { Authorization: `Bearer ${token}` } })
+        const headers: any = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        fetch(`${API_URL}/products`, { headers })
             .then((res) => res.json())
             .then((data) => {
                 const mappedProducts = (data.products || []).map((p: any) => ({
                     ...p,
                     image: p.image_url || p.image || '/images/smartwatch.png',
                     gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
-                    price: p.price ? (typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '') ? `$${Number(p.price).toLocaleString()}` : p.price) : 'N/A'
+                    price: p.price ? (typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '') ? `₦${Number(p.price).toLocaleString()}` : p.price) : 'N/A'
                 }));
-                setProducts(mappedProducts);
+
+                // If API returned no products, fall back to local seeded products
+                if (!mappedProducts || mappedProducts.length === 0) {
+                    setProducts(localProducts as Product[]);
+                } else {
+                    setProducts(mappedProducts);
+                }
+
                 setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch(() => {
+                setProducts(localProducts as Product[]);
+                setLoading(false);
+            });
     }, [router]);
 
     // Lock scroll when modal is open
@@ -143,7 +152,7 @@ export default function Marketplace() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setSelectedProduct(null)}
-                            className="absolute inset-0 bg-black/60 backdrop-blur-xl"
+                            className="absolute inset-0 bg-black/50 backdrop-blur-3xl"
                         />
 
                         {/* Modal Content */}
@@ -152,7 +161,7 @@ export default function Marketplace() {
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.95, opacity: 0, y: 30 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="relative w-full max-w-lg bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/50"
+                            className="relative w-full max-w-5xl bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/50 max-h-[75vh]"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Close Button */}
@@ -167,18 +176,24 @@ export default function Marketplace() {
 
                             <div className="flex flex-col sm:flex-row w-full">
                                 {/* Left: Image */}
-                                <div className={`relative flex-shrink-0 h-72 sm:h-auto sm:w-1/2 bg-gradient-to-br ${selectedProduct.gradient} flex items-center justify-center p-8`}>
+                                <div className={`relative flex-shrink-0 h-64 sm:h-auto sm:w-1/2 bg-gradient-to-br ${selectedProduct.gradient} flex items-center justify-center p-8`}>
                                     <div className="absolute inset-0 bg-black/20 mix-blend-overlay" />
                                     <motion.div
-                                        initial={{ y: 20, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        transition={{ delay: 0.2 }}
-                                        className="relative w-full h-full drop-shadow-2xl z-10"
+                                        initial={{ y: 10, opacity: 0 }}
+                                        animate={{
+                                            y: [0, -8, 0, 8, 0],
+                                            rotate: [0, 3, 0, -3, 0],
+                                            scale: [1, 1.02, 1, 1.02, 1],
+                                            opacity: [0, 1]
+                                        }}
+                                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                                        whileHover={{ scale: 1.06 }}
+                                        className="relative w-full h-full drop-shadow-2xl z-10 flex items-center justify-center"
                                     >
                                         <img
                                             src={selectedProduct.image}
                                             alt={selectedProduct.name}
-                                            className="w-full h-full object-contain"
+                                            className="w-full h-full object-contain pointer-events-none"
                                         />
                                     </motion.div>
                                 </div>
@@ -205,11 +220,11 @@ export default function Marketplace() {
                                             {selectedProduct.description}
                                         </p>
 
-                                        <div className="flex gap-4">
+                                        <div className="flex gap-4 items-center">
                                             <button
                                                 onClick={async (e) => {
                                                     const btn = e.currentTarget;
-                                                    const originalText = btn.innerHTML;
+                                                    const originalHTML = btn.innerHTML;
                                                     btn.innerHTML = 'Adding...';
                                                     btn.disabled = true;
                                                     try {
@@ -225,17 +240,18 @@ export default function Marketplace() {
                                                             body: JSON.stringify({ product_id: selectedProduct.id, quantity: 1 })
                                                         });
                                                         btn.innerHTML = 'Added! ✓';
-                                                        setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+                                                        setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500);
                                                     } catch {
                                                         btn.innerHTML = 'Error';
-                                                        setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+                                                        setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500);
                                                     }
                                                 }}
-                                                className="flex-1 py-4 px-6 rounded-2xl font-bold text-white bg-gray-900 hover:bg-black hover:shadow-xl transition-all active:scale-95 text-center flex justify-center items-center gap-2">
+                                                aria-label={`Add ${selectedProduct.name} to cart`}
+                                                className="w-14 h-12 rounded-xl font-bold text-white bg-gray-900 hover:bg-black hover:shadow-xl transition-all active:scale-95 flex items-center justify-center"
+                                            >
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
                                                 </svg>
-                                                Add to Cart
                                             </button>
                                             <button className="py-4 px-4 rounded-2xl border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 transition-all active:scale-95">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

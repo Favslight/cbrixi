@@ -155,7 +155,7 @@ export default function CheckoutPage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="font-bold text-white whitespace-nowrap">${(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
+                                            <p className="font-bold text-white whitespace-nowrap">₦{(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
                                         </li>
                                     ))}
                                 </ul>
@@ -183,7 +183,7 @@ export default function CheckoutPage() {
                                         title="Pay in Full"
                                         description="Pay the entire amount upfront — no interest, no commitments."
                                         badge={<span className="text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full text-xs">Recommended</span>}
-                                        amount={`$${total.toFixed(2)}`}
+                                        amount={`₦${total.toFixed(2)}`}
                                     />
 
                                     {/* Installment */}
@@ -201,7 +201,7 @@ export default function CheckoutPage() {
                                         title="Pay in Instalments"
                                         description="Split your purchase into manageable monthly payments."
                                         badge={<span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full text-xs">Flexible</span>}
-                                        amount={`$${deposit.toFixed(2)} deposit`}
+                                        amount={`₦${deposit.toFixed(2)} deposit`}
                                     />
                                 </div>
                             </motion.section>
@@ -214,12 +214,12 @@ export default function CheckoutPage() {
                                 <h2 className="text-xl font-bold mb-6 pb-4 border-b border-white/10">Order Summary</h2>
 
                                 <div className="space-y-4 text-sm mb-6">
-                                    <Row label={`Subtotal (${cartItems.reduce((a, i) => a + i.quantity, 0)} items)`} value={`$${total.toFixed(2)}`} />
+                                    <Row label={`Subtotal (${cartItems.reduce((a, i) => a + i.quantity, 0)} items)`} value={`₦${total.toFixed(2)}`} />
                                     <Row label="Shipping" value="Free" valueClass="text-green-400" />
                                     {paymentMode === 'INSTALLMENT' && (
                                         <>
-                                            <Row label="Deposit (50%)" value={`$${deposit.toFixed(2)}`} />
-                                            <Row label="Remaining balance" value={`$${(total - deposit).toFixed(2)}`} valueClass="text-white/50" />
+                                            <Row label="Deposit (50%)" value={`₦${deposit.toFixed(2)}`} />
+                                            <Row label="Remaining balance" value={`₦${(total - deposit).toFixed(2)}`} valueClass="text-white/50" />
                                         </>
                                     )}
                                 </div>
@@ -227,7 +227,7 @@ export default function CheckoutPage() {
                                 <div className="flex justify-between items-center mb-8 pt-4 border-t border-white/10">
                                     <span className="text-base font-bold">{paymentMode === 'INSTALLMENT' ? 'Due Today' : 'Total Due'}</span>
                                     <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                                        ${paymentMode === 'INSTALLMENT' ? deposit.toFixed(2) : total.toFixed(2)}
+                                        ₦{paymentMode === 'INSTALLMENT' ? deposit.toFixed(2) : total.toFixed(2)}
                                     </span>
                                 </div>
 

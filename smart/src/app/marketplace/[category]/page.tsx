@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -21,7 +21,7 @@ const CATEGORIES: Record<string, {
   'smart-watches': {
     title: 'Smart Watches',
     tagline: 'Your wrist. Upgraded.',
-    image: '/images/cat-smartwatch.png',
+    image: '/images/smartwatch.png',
     accent: 'blue',
     accentHex: '#3b82f6',
     gradient: 'from-blue-600/30 via-blue-900/10 to-transparent',
@@ -55,7 +55,7 @@ const CATEGORIES: Record<string, {
   'smart-home': {
     title: 'Smart Home',
     tagline: 'Your home. Intelligent.',
-    image: '/images/cat-smarthome.png',
+    image: '/images/speaker.png',
     accent: 'purple',
     accentHex: '#a855f7',
     gradient: 'from-purple-600/30 via-purple-900/10 to-transparent',
@@ -89,7 +89,7 @@ const CATEGORIES: Record<string, {
   'audio-devices': {
     title: 'Audio Devices',
     tagline: 'Hear everything. Miss nothing.',
-    image: '/images/cat-audio.png',
+    image: '/images/earbuds.png',
     accent: 'cyan',
     accentHex: '#06b6d4',
     gradient: 'from-cyan-600/30 via-cyan-900/10 to-transparent',
@@ -123,7 +123,7 @@ const CATEGORIES: Record<string, {
   'accessories': {
     title: 'Accessories',
     tagline: 'Complete your setup.',
-    image: '/images/cat-accessories.png',
+    image: '/images/laptop.png',
     accent: 'emerald',
     accentHex: '#10b981',
     gradient: 'from-emerald-600/30 via-emerald-900/10 to-transparent',
@@ -170,8 +170,77 @@ export default function CategoryPage() {
   const data = CATEGORIES[slug];
   const ac = data ? accentClasses[data.accent] : null;
 
+  // Typewriter for the page tagline that loops: typing -> pause -> erasing -> repeat
+  function useTypewriterSingle(text: string, typingMs = 40, pauseMs = 900, eraseMs = 30) {
+    const [display, setDisplay] = useState('');
+    const [phase, setPhase] = useState<'typing' | 'pause' | 'erasing'>('typing');
+    const [charIdx, setCharIdx] = useState(0);
+
+    useEffect(() => {
+      setDisplay('');
+      setCharIdx(0);
+      setPhase('typing');
+    }, [text]);
+
+    useEffect(() => {
+      if (!text) return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      if (phase === 'typing') {
+        if (charIdx < text.length) {
+          timer = setTimeout(() => {
+            setDisplay(text.slice(0, charIdx + 1));
+            setCharIdx((c) => c + 1);
+          }, typingMs);
+        } else {
+          timer = setTimeout(() => setPhase('pause'), pauseMs);
+        }
+      } else if (phase === 'pause') {
+        timer = setTimeout(() => setPhase('erasing'), 200);
+      } else if (phase === 'erasing') {
+        if (charIdx > 0) {
+          timer = setTimeout(() => {
+            setDisplay(text.slice(0, charIdx - 1));
+            setCharIdx((c) => c - 1);
+          }, eraseMs);
+        } else {
+          setPhase('typing');
+        }
+      }
+      return () => { if (timer) clearTimeout(timer); };
+    }, [text, typingMs, pauseMs, eraseMs, phase, charIdx]);
+
+    return { display, phase };
+  }
+
   /* Scroll to top on mount */
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [slug]);
+
+  // Inline component for rendering the typewriter tagline so hooks stay top-level
+  function HeroTagline({ text }: { text: string }) {
+    const { display, phase } = useTypewriterSingle(text);
+
+    // Split display and wrap the last token in gradient-text (works while typing)
+    const parts = display ? display.split(' ') : [''];
+    const last = parts.length > 0 ? parts.pop() as string : '';
+    const prefix = parts.length ? parts.join(' ') + ' ' : '';
+
+    return (
+      <motion.h1
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.65, delay: 0.1 }}
+        className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.07] tracking-tight mb-6"
+      >
+        {prefix}
+        <span className="gradient-text">{last}</span>
+        <motion.span
+          className="inline-block w-[3px] h-[0.9em] bg-blue-400 ml-1 align-middle rounded-sm"
+          animate={{ opacity: phase === 'pause' ? [1, 0, 1, 0, 1] : 1 }}
+          transition={{ duration: 0.9, repeat: phase === 'pause' ? Infinity : 0 }}
+        />
+      </motion.h1>
+    );
+  }
 
   /* ── 404 state ── */
   if (!data || !ac) {
@@ -234,20 +303,8 @@ export default function CategoryPage() {
               {data.title}
             </motion.span>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.1 }}
-              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.07] tracking-tight mb-6"
-            >
-              {data.tagline.split(' ').map((word, i) => (
-                <span key={i}>
-                  {i === data.tagline.split(' ').length - 1
-                    ? <span className="gradient-text">{word}</span>
-                    : <>{word}{' '}</>}
-                </span>
-              ))}
-            </motion.h1>
+            {/* Tagline with single-run typewriter + cursor (mirrors Hero) */}
+            <HeroTagline text={data.tagline} />
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -362,18 +419,39 @@ export default function CategoryPage() {
                 {/* Text side */}
                 <div className={isEven ? '' : 'lg:order-2'}>
                   {/* Section number */}
-                  <p className={`text-xs font-bold tracking-[0.3em] uppercase mb-3 ${ac.text}`}>
+                  <motion.p
+                    initial={{ opacity: 0, y: 16 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-80px' }}
+                    transition={{ duration: 0.5, delay: 0.05 + i * 0.04 }}
+                    className={`text-xs font-bold tracking-[0.3em] uppercase mb-3 ${ac.text}`}
+                  >
                     0{i + 1} — {data.title}
-                  </p>
-                  <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6 leading-tight">
+                  </motion.p>
+
+                  <motion.h2
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-80px' }}
+                    transition={{ duration: 0.65, delay: 0.1 + i * 0.04 }}
+                    className="text-3xl sm:text-4xl font-bold text-white mb-6 leading-tight"
+                  >
                     {sec.heading}
-                  </h2>
+                  </motion.h2>
+
                   <div className={`w-12 h-1 rounded-full mb-6 bg-gradient-to-r`}
                     style={{ background: `linear-gradient(90deg, ${data.accentHex}, transparent)` }}
                   />
-                  <p className="text-white/60 text-lg leading-relaxed">
+
+                  <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-80px' }}
+                    transition={{ duration: 0.65, delay: 0.18 + i * 0.04 }}
+                    className="text-white/60 text-lg leading-relaxed"
+                  >
                     {sec.body}
-                  </p>
+                  </motion.p>
                 </div>
 
                 {/* Visual card side */}
@@ -388,15 +466,16 @@ export default function CategoryPage() {
                       className="absolute inset-0 opacity-10 blur-2xl"
                       style={{ background: `radial-gradient(circle at 50% 50%, ${data.accentHex}, transparent 70%)` }}
                     />
-                    {/* Big icon */}
-                    <motion.span
-                      animate={{ rotate: [0, 4, 0, -4, 0], y: [0, -6, 0] }}
-                      transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
-                      className="text-[96px] sm:text-[120px] drop-shadow-2xl relative z-10 select-none"
-                      style={{ filter: `drop-shadow(0 0 24px ${data.accentHex}88)` }}
-                    >
-                      {data.icon}
-                    </motion.span>
+                    {/* Realistic image instead of emoji icon */}
+                    <div className="relative z-10 flex items-center justify-center w-full h-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={data.image}
+                        alt={sec.heading}
+                        className="object-contain max-h-[220px]"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }}
+                      />
+                    </div>
                   </motion.div>
                 </div>
               </motion.div>

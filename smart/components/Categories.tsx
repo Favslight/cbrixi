@@ -107,60 +107,60 @@ export default function Categories() {
     );
 }
 
+const SLUG_MAP: Record<string, string> = {
+    'Smart Watches': 'smart-watches',
+    'Smart Home':    'smart-home',
+    'Audio Devices': 'audio-devices',
+    'Accessories':   'accessories',
+};
+
 function CategoryCard({ category }: { category: Category }) {
+    const slug = SLUG_MAP[category.title];
     return (
-        <motion.div
-            variants={cardVariants}
-            whileHover={{ y: -8, scale: 1.02 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-            className={`group glass-card rounded-2xl p-6 cursor-pointer relative overflow-hidden shadow-xl ${category.glow} hover:shadow-2xl transition-shadow duration-500`}
-        >
-            {/* Gradient overlay */}
-            <div
-                className={`absolute inset-0 bg-gradient-to-br ${category.gradient} opacity-60 rounded-2xl pointer-events-none`}
-            />
-            {/* Gradient border glow on hover */}
-            <div className="absolute inset-0 rounded-2xl border border-white/8 group-hover:border-white/20 transition-colors duration-300 pointer-events-none" />
-            {/* Glow line top */}
-            <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <Link href={`/marketplace/${slug}`} className="block">
+            <motion.div
+                variants={cardVariants}
+                whileHover={{ y: -8, scale: 1.02 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                className={`group glass-card rounded-2xl p-6 cursor-pointer relative overflow-hidden shadow-xl ${category.glow} hover:shadow-2xl transition-shadow duration-500`}
+            >
+                {/* Gradient overlay */}
+                <div
+                    className={`absolute inset-0 bg-gradient-to-br ${category.gradient} opacity-60 rounded-2xl pointer-events-none`}
+                />
+                {/* Gradient border glow on hover */}
+                <div className="absolute inset-0 rounded-2xl border border-white/8 group-hover:border-white/20 transition-colors duration-300 pointer-events-none" />
+                {/* Glow line top */}
+                <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            <div className="relative z-10 flex flex-col gap-4">
-                {/* Icon */}
-                <motion.div
-                    className="text-5xl w-16 h-16 flex items-center justify-center rounded-2xl bg-white/5"
-                    whileHover={{ rotate: [0, -6, 6, 0] }}
-                    transition={{ duration: 0.5 }}
-                >
-                    {category.icon}
-                </motion.div>
+                <div className="relative z-10 flex flex-col gap-4">
+                    {/* Icon */}
+                    <motion.div
+                        className="text-5xl w-16 h-16 flex items-center justify-center rounded-2xl bg-white/5"
+                        whileHover={{ rotate: [0, -6, 6, 0] }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        {category.icon}
+                    </motion.div>
 
-                <div>
-                    <h3 className="text-white font-semibold text-lg mb-1 group-hover:text-blue-200 transition-colors">
-                        {category.title}
-                    </h3>
-                    <p className="text-white/50 text-sm leading-relaxed">{category.description}</p>
-                </div>
+                    <div>
+                        <h3 className="text-white font-semibold text-lg mb-1 group-hover:text-blue-200 transition-colors">
+                            {category.title}
+                        </h3>
+                        <p className="text-white/50 text-sm leading-relaxed">{category.description}</p>
+                    </div>
 
-                {/* Arrow link */}
-                <motion.div
-                    className="flex items-center gap-1 text-blue-400 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    initial={{ x: -4 }}
-                    whileHover={{ x: 0 }}
-                >
-                    {/* Use explicit slug mapping to ensure hrefs are correct */}
-                    <Link href={`/marketplace/${{
-                        'Smart Watches': 'smart-watches',
-                        'Smart Home': 'smart-home',
-                        'Audio Devices': 'audio-devices',
-                        'Accessories': 'accessories'
-                    }[category.title]}`} className="flex items-center gap-1">
+                    {/* Arrow */}
+                    <motion.div
+                        className="flex items-center gap-1 text-blue-400 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    >
                         <span>Explore</span>
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
-                    </Link>
-                </motion.div>
-            </div>
-        </motion.div>
+                    </motion.div>
+                </div>
+            </motion.div>
+        </Link>
     );
 }

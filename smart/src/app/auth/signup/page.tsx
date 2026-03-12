@@ -3,22 +3,22 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Signup() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
+    firstname: "",
+    lastname: "",
+    username: "",
     email: "",
-    phoneNumber: "",
     password: "",
-    dateOfBirth: "",
     agreeToTerms: false,
   });
 
+  const [error, setError] = useState("");
   const [passwordStrength, setPasswordStrength] = useState({
     score: 0,
     label: "",
@@ -68,11 +68,34 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // Simulate API call for signup
-    setTimeout(() => {
+    setError("");
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+      const res = await fetch(`${API_URL}/user/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstname: formData.firstname,
+          lastname: formData.lastname,
+          username: formData.username,
+          email: formData.email,
+          password: formData.password
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        router.push("/auth/login?signup=success");
+      } else {
+        setError(data.message || "Signup failed. Please try again.");
+      }
+    } catch (err) {
+      setError("Connection error. Please try again.");
+    } finally {
       setIsSubmitting(false);
-      router.push("/auth/login"); // Redirect to login on success
-    }, 2000);
+    }
   };
 
   return (
@@ -95,15 +118,29 @@ export default function Signup() {
         </p>
       </div>
 
+      {/* Error message */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="px-4 py-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-sm text-center"
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Signup Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* First Name */}
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-white/80 mb-2">First Name</label>
+            <label htmlFor="firstname" className="block text-sm font-medium text-white/80 mb-2">First Name</label>
             <input
-              type="text" id="firstName" name="firstName"
-              value={formData.firstName} onChange={handleInputChange}
+              type="text" id="firstname" name="firstname"
+              value={formData.firstname} onChange={handleInputChange}
               placeholder="John"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card"
               required
@@ -111,10 +148,10 @@ export default function Signup() {
           </div>
           {/* Last Name */}
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-white/80 mb-2">Last Name</label>
+            <label htmlFor="lastname" className="block text-sm font-medium text-white/80 mb-2">Last Name</label>
             <input
-              type="text" id="lastName" name="lastName"
-              value={formData.lastName} onChange={handleInputChange}
+              type="text" id="lastname" name="lastname"
+              value={formData.lastname} onChange={handleInputChange}
               placeholder="Doe"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card"
               required
@@ -122,36 +159,27 @@ export default function Signup() {
           </div>
         </div>
 
-        {/* Email Field */}
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-white/80 mb-2">Email Address</label>
-          <input
-            type="email" id="email" name="email"
-            value={formData.email} onChange={handleInputChange}
-            placeholder="john@example.com"
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card"
-            required
-          />
-        </div>
-
-        {/* Phone Number & DOB */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Username Field */}
           <div>
-            <label htmlFor="phoneNumber" className="block text-sm font-medium text-white/80 mb-2">Phone Number</label>
+            <label htmlFor="username" className="block text-sm font-medium text-white/80 mb-2">Username</label>
             <input
-              type="tel" id="phoneNumber" name="phoneNumber"
-              value={formData.phoneNumber} onChange={handleInputChange}
-              placeholder="+1 234 567 8900"
+              type="text" id="username" name="username"
+              value={formData.username} onChange={handleInputChange}
+              placeholder="johndoe"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card"
               required
             />
           </div>
+          {/* Email Field */}
           <div>
-            <label htmlFor="dateOfBirth" className="block text-sm font-medium text-white/80 mb-2">Date of Birth <span className="text-white/40">(Optional)</span></label>
+            <label htmlFor="email" className="block text-sm font-medium text-white/80 mb-2">Email Address</label>
             <input
-              type="date" id="dateOfBirth" name="dateOfBirth"
-              value={formData.dateOfBirth} onChange={handleInputChange}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white/80 placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card [color-scheme:dark]"
+              type="email" id="email" name="email"
+              value={formData.email} onChange={handleInputChange}
+              placeholder="john@example.com"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card"
+              required
             />
           </div>
         </div>

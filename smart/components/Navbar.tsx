@@ -39,12 +39,34 @@ const CloseIcon = () => (
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState<{ firstname?: string; email?: string } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
+    
+    // Check for logged in user
+    const userData = localStorage.getItem("userData");
+    if (userData) {
+        try {
+            setUser(JSON.parse(userData));
+        } catch (e) {
+            console.error("Error parsing user data", e);
+        }
+    }
+
+    // Check for admin login
+    const adminToken = localStorage.getItem("adminToken");
+    if (adminToken) {
+        setIsAdmin(true);
+    }
+
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  const userInitial = user?.firstname ? user.firstname.charAt(0).toUpperCase() : null;
+  const adminInitial = "A"; // Simple initial for admin
 
   return (
     <>
@@ -73,15 +95,29 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-3">
               <ThemeSwitcher />
               <IconButton href="/cart" label="Cart" Icon={CartIcon} />
-              <IconButton href="#account" label="Account" Icon={UserIcon} />
-              <motion.a
-                href="/auth/login"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.96 }}
-                className="ml-2 px-5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/50 transition-shadow duration-300"
-              >
-                Shop Now
-              </motion.a>
+              <IconButton 
+                href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} 
+                label="Account" 
+                Icon={isAdmin ? () => (
+                    <div className="w-5 h-5 flex items-center justify-center text-sm font-bold bg-purple-500/20 text-purple-400 rounded-full">
+                        {adminInitial}
+                    </div>
+                ) : userInitial ? () => (
+                    <div className="w-5 h-5 flex items-center justify-center text-sm font-bold bg-blue-500/20 text-blue-400 rounded-full">
+                        {userInitial}
+                    </div>
+                ) : UserIcon} 
+              />
+              {!user && !isAdmin && (
+                <motion.a
+                    href="/auth/login"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.96 }}
+                    className="ml-2 px-5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/50 transition-shadow duration-300"
+                >
+                    Shop Now
+                </motion.a>
+              )}
             </div>
 
             {/* Mobile hamburger */}
@@ -123,7 +159,17 @@ export default function Navbar() {
               ))}
               <div className="flex gap-3 pt-2 border-t border-white/10 mt-2">
                 <a href="/cart" className="text-white/60 hover:text-white transition-colors"><CartIcon /></a>
-                <a href="#account" className="text-white/60 hover:text-white transition-colors"><UserIcon /></a>
+                <a href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} className="text-white/60 hover:text-white transition-colors">
+                    {isAdmin ? (
+                        <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-purple-500/20 text-purple-400 rounded-full">
+                            {adminInitial}
+                        </div>
+                    ) : userInitial ? (
+                        <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-blue-500/20 text-blue-400 rounded-full">
+                            {userInitial}
+                        </div>
+                    ) : <UserIcon />}
+                </a>
               </div>
             </div>
           </motion.div>

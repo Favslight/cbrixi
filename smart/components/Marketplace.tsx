@@ -161,7 +161,7 @@ export default function Marketplace() {
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.95, opacity: 0, y: 30 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="relative w-full max-w-5xl bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/50 max-h-[75vh]"
+                            className="relative w-full max-w-4xl bg-[#0a0a0f] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/80 max-h-[85vh]"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Close Button */}
@@ -176,19 +176,15 @@ export default function Marketplace() {
 
                             <div className="flex flex-col sm:flex-row w-full">
                                 {/* Left: Image */}
-                                <div className={`relative flex-shrink-0 h-64 sm:h-auto sm:w-1/2 bg-gradient-to-br ${selectedProduct.gradient} flex items-center justify-center p-8`}>
-                                    <div className="absolute inset-0 bg-black/20 mix-blend-overlay" />
+                                <div className={`relative flex-shrink-0 h-72 sm:h-auto sm:w-1/2 flex items-center justify-center p-8 bg-[#07070a]`}>
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${selectedProduct.gradient} opacity-20`} />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
                                     <motion.div
-                                        initial={{ y: 10, opacity: 0 }}
-                                        animate={{
-                                            y: [0, -8, 0, 8, 0],
-                                            rotate: [0, 3, 0, -3, 0],
-                                            scale: [1, 1.02, 1, 1.02, 1],
-                                            opacity: [0, 1]
-                                        }}
-                                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                                        whileHover={{ scale: 1.06 }}
-                                        className="relative w-full h-full drop-shadow-2xl z-10 flex items-center justify-center"
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+                                        whileHover={{ scale: 1.05 }}
+                                        className="relative w-full h-full drop-shadow-2xl z-10 flex items-center justify-center transition-transform duration-500"
                                     >
                                         <img
                                             src={selectedProduct.image}
@@ -198,25 +194,29 @@ export default function Marketplace() {
                                     </motion.div>
                                 </div>
 
-                                {/* Right: Product Details on White space */}
-                                <div className="p-8 flex flex-col justify-center bg-white text-gray-900 sm:w-1/2">
+                                {/* Right: Product Details on Dark space */}
+                                <div className="p-8 sm:p-10 flex flex-col justify-center text-white sm:w-1/2 relative bg-[#0a0a0f]">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] pointer-events-none" />
+                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
+                                    
                                     <motion.div
-                                        initial={{ y: 10, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        transition={{ delay: 0.3 }}
+                                        initial={{ x: 20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
+                                        className="relative z-10"
                                     >
                                         <div className="flex justify-between items-start mb-4">
-                                            <h2 className="text-3xl font-bold text-gray-900 leading-tight pr-4">
+                                            <h2 className="text-3xl font-bold leading-tight pr-4 text-white">
                                                 {selectedProduct.name}
                                             </h2>
-                                            <p className="text-2xl font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-xl whitespace-nowrap">
+                                            <p className="text-2xl font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-1.5 rounded-xl whitespace-nowrap shadow-inner">
                                                 {selectedProduct.price}
                                             </p>
                                         </div>
 
-                                        <div className="w-12 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mb-6" />
+                                        <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mb-8 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
 
-                                        <p className="text-gray-600 text-base leading-relaxed mb-8">
+                                        <p className="text-white/60 text-lg leading-relaxed mb-10 font-light">
                                             {selectedProduct.description}
                                         </p>
 
@@ -225,7 +225,7 @@ export default function Marketplace() {
                                                 onClick={async (e) => {
                                                     const btn = e.currentTarget;
                                                     const originalHTML = btn.innerHTML;
-                                                    btn.innerHTML = 'Adding...';
+                                                    btn.innerHTML = '<span class="text-xl tracking-widest leading-none">....</span>';
                                                     btn.disabled = true;
                                                     try {
                                                         const token = localStorage.getItem('userToken');
@@ -239,7 +239,7 @@ export default function Marketplace() {
                                                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                                             body: JSON.stringify({ product_id: selectedProduct.id, quantity: 1 })
                                                         });
-                                                        btn.innerHTML = 'Added! ✓';
+                                                        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>';
                                                         setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500);
                                                     } catch {
                                                         btn.innerHTML = 'Error';
@@ -247,13 +247,13 @@ export default function Marketplace() {
                                                     }
                                                 }}
                                                 aria-label={`Add ${selectedProduct.name} to cart`}
-                                                className="w-14 h-12 rounded-xl font-bold text-white bg-gray-900 hover:bg-black hover:shadow-xl transition-all active:scale-95 flex items-center justify-center"
+                                                className="w-16 h-14 rounded-2xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 hover:shadow-lg hover:shadow-blue-500/25 border border-blue-400/20 transition-all active:scale-95 flex items-center justify-center"
                                             >
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
                                                 </svg>
                                             </button>
-                                            <button className="py-4 px-4 rounded-2xl border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 transition-all active:scale-95">
+                                            <button className="py-4 px-4 h-14 w-14 flex items-center justify-center rounded-2xl border border-white/10 hover:border-white/30 hover:bg-white/5 text-white/70 hover:text-white transition-all active:scale-95">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                                                 </svg>

@@ -68,7 +68,7 @@ export default function CheckoutPage() {
         setSubmitting(true);
         setError('');
         try {
-            const res = await fetch(`${API_URL}/checkout`, {
+            const res = await fetch(`${API_URL}/order/checkout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ payment_mode: paymentMode })

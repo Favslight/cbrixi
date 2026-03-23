@@ -8,6 +8,7 @@ import CbrixiLogo from './CbrixiLogo';
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: GridIcon },
   { label: 'Products', href: '/admin/products', icon: BoxIcon },
+  { label: 'Orders', href: '/admin/orders', icon: OrdersIcon },
   { label: 'Users', href: '/admin/users', icon: UsersIcon },
   { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
 ];
@@ -79,6 +80,13 @@ function GridIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
       <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+function OrdersIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
     </svg>
   );
 }

@@ -36,6 +36,7 @@ export default function CheckoutPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [paymentMode, setPaymentMode] = useState<PaymentMode>('FULL');
+    const [externalEmail, setExternalEmail] = useState('');
     const [error, setError] = useState('');
 
     const fetchCart = async () => {
@@ -65,13 +66,22 @@ export default function CheckoutPage() {
     const handlePlaceOrder = async () => {
         const token = localStorage.getItem('userToken');
         if (!token) { router.push('/auth/login'); return; }
+        
+        if (paymentMode === 'INSTALLMENT' && !externalEmail) {
+            setError('Please provide an email to verify your installment plan.');
+            return;
+        }
+
         setSubmitting(true);
         setError('');
         try {
             const res = await fetch(`${API_URL}/order/checkout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ payment_mode: paymentMode })
+                body: JSON.stringify({ 
+                    payment_mode: paymentMode,
+                    externalEmail: paymentMode === 'INSTALLMENT' ? externalEmail : null
+                })
             });
             const data = await res.json();
             if (data.success) {
@@ -204,6 +214,18 @@ export default function CheckoutPage() {
                                         amount={`₦${deposit.toFixed(2)} deposit`}
                                     />
                                 </div>
+                                {paymentMode === 'INSTALLMENT' && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6">
+                                        <label className="block text-sm font-medium text-white/70 mb-2">Verify Email for Installment</label>
+                                        <input 
+                                            type="email" 
+                                            value={externalEmail} 
+                                            onChange={(e) => setExternalEmail(e.target.value)} 
+                                            placeholder="Enter your email address to verify" 
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                                        />
+                                    </motion.div>
+                                )}
                             </motion.section>
                         </div>
 

@@ -24,7 +24,7 @@ export default function Login() {
     setError("");
     setLoading(true);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
     try {
       // 1. Try User Login

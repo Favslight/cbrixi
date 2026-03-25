@@ -15,7 +15,7 @@ export default function Marketplace() {
     useEffect(() => {
         const token = localStorage.getItem('userToken');
 
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
         const headers: any = {};
         if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -233,7 +233,7 @@ export default function Marketplace() {
                                                             router.push('/auth/login');
                                                             return;
                                                         }
-                                                        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+                                                        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
                                                         await fetch(`${API_URL}/cart/add`, {
                                                             method: 'POST',
                                                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
 type Method = 'PAYSTACK' | 'BANK_TRANSFER';
 

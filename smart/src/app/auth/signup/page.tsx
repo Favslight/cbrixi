@@ -71,7 +71,7 @@ export default function Signup() {
     setError("");
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
       const res = await fetch(`${API_URL}/user/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

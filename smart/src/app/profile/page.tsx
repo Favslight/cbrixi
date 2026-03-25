@@ -36,7 +36,7 @@ export default function ProfilePage() {
         return;
       }
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
       const res = await fetch(`${API_URL}/user/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -66,7 +66,7 @@ export default function ProfilePage() {
 
     try {
       const token = localStorage.getItem("userToken");
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
       const res = await fetch(`${API_URL}/user/profile`, {
         method: "PUT",
         headers: {
@@ -95,7 +95,7 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem("userToken");
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
       await fetch(`${API_URL}/user/logout`, {
         method: "POST",
         headers: {

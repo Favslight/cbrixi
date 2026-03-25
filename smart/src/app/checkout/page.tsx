@@ -21,7 +21,7 @@ interface CartItem {
 
 type PaymentMode = 'FULL' | 'INSTALLMENT';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
 const Spinner = ({ sm }: { sm?: boolean }) => (
     <svg className={`animate-spin text-white ${sm ? 'w-4 h-4' : 'w-8 h-8'}`} fill="none" viewBox="0 0 24 24">

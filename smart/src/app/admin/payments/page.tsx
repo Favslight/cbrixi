@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
 interface PendingPayment {
     id: string;

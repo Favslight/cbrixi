@@ -35,7 +35,7 @@ export default function CartPage() {
         }
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
             const res = await fetch(`${API_URL}/cart`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -61,7 +61,7 @@ export default function CartPage() {
 
         const token = localStorage.getItem('userToken');
         setUpdatingId(itemId);
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
         try {
             const res = await fetch(`${API_URL}/cart/item/${itemId}`, {
@@ -90,7 +90,7 @@ export default function CartPage() {
     const handleRemoveItem = async (itemId: string) => {
         const token = localStorage.getItem('userToken');
         setUpdatingId(itemId);
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cbrixiserver.onrender.com';
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
         try {
             const res = await fetch(`${API_URL}/cart/item/${itemId}`, {

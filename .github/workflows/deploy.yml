@@ -25,7 +25,7 @@ jobs:
           username: root
           key: ${{ secrets.VPS_CBRIXI_KEY }}
           script: |
-            cd /root/cbrixi/smart
+            cd /root/cbx/cbrixi/smart
             git fetch --all
             git reset --hard origin/main
             npm install

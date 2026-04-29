@@ -10,6 +10,7 @@ export default function Marketplace() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
     const router = useRouter();
 
     useEffect(() => {
@@ -25,6 +26,7 @@ export default function Marketplace() {
                 const mappedProducts = (data.products || []).map((p: any) => ({
                     ...p,
                     image: p.image_url || p.image || '/images/smartwatch.png',
+                    image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 4),
                     gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
                     price: p.price ? (typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '') ? `₦${Number(p.price).toLocaleString()}` : p.price) : 'N/A'
                 }));
@@ -101,7 +103,10 @@ export default function Marketplace() {
                                 viewport={{ once: true, margin: '-80px' }}
                                 transition={{ duration: 0.5, delay: index * 0.1 }}
                                 whileHover={{ y: -8, scale: 1.02 }}
-                                onClick={() => setSelectedProduct(product)}
+                                onClick={() => {
+                                    setSelectedProduct(product);
+                                    setActiveImageIndex(0);
+                                }}
                                 className="group rounded-3xl cursor-pointer relative overflow-hidden flex flex-col items-center text-center shadow-xl hover:shadow-2xl transition-all duration-500 h-[400px]"
                             >
                                 {/* Product Image Cover */}
@@ -187,11 +192,17 @@ export default function Marketplace() {
                                         className="relative w-full h-full drop-shadow-2xl z-10 flex items-center justify-center transition-transform duration-500"
                                     >
                                         <img
-                                            src={selectedProduct.image}
+                                            src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image}
                                             alt={selectedProduct.name}
                                             className="w-full h-full object-contain pointer-events-none"
                                         />
                                     </motion.div>
+                                    {(selectedProduct.image_urls?.length || 0) > 1 && (
+                                        <>
+                                            <button type="button" onClick={() => setActiveImageIndex((prev) => prev === 0 ? (selectedProduct.image_urls!.length - 1) : prev - 1)} className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/50 text-white">‹</button>
+                                            <button type="button" onClick={() => setActiveImageIndex((prev) => prev === (selectedProduct.image_urls!.length - 1) ? 0 : prev + 1)} className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/50 text-white">›</button>
+                                        </>
+                                    )}
                                 </div>
 
                                 {/* Right: Product Details on Dark space */}
@@ -219,6 +230,21 @@ export default function Marketplace() {
                                         <p className="text-white/60 text-lg leading-relaxed mb-10 font-light">
                                             {selectedProduct.description}
                                         </p>
+                                        {(selectedProduct.image_urls?.length || 0) > 1 && (
+                                            <div className="flex gap-2 mb-8">
+                                                {selectedProduct.image_urls!.map((image, index) => (
+                                                    <button
+                                                        key={`${image}-${index}`}
+                                                        type="button"
+                                                        onClick={() => setActiveImageIndex(index)}
+                                                        className={`w-14 h-14 rounded-lg overflow-hidden border ${activeImageIndex === index ? 'border-blue-400' : 'border-white/20'}`}
+                                                    >
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={image} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
 
                                         <div className="flex gap-4 items-center">
                                             <button

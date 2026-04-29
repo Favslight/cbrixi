@@ -105,6 +105,15 @@ export default function Signup() {
       transition={{ duration: 0.6, delay: 0.1 }}
       className="space-y-8 w-full max-w-xl mx-auto p-8 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-2xl shadow-2xl shadow-black/50 overflow-y-auto max-h-[85vh] scrollbar-hide"
     >
+      <div className="flex justify-start">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors"
+        >
+          <span aria-hidden="true">←</span>
+          Back to Home
+        </Link>
+      </div>
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">

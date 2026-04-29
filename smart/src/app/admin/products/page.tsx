@@ -7,6 +7,7 @@ import Link from 'next/link';
 interface Product {
   id: string; name: string; price: string;
   description: string; image: string; category: string; createdAt: string;
+  image_urls?: string[];
 }
 
 export default function AdminProducts() {
@@ -14,6 +15,7 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [previewImages, setPreviewImages] = useState<string[] | null>(null);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') ?? '' : '';
 
@@ -24,7 +26,8 @@ export default function AdminProducts() {
     const d = await res.json();
     const mappedProducts = (d.products || []).map((p: any) => ({
       ...p,
-      image: p.image_url || p.image || '/images/smartwatch.png'
+      image: p.image_url || p.image || '/images/smartwatch.png',
+      image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 4)
     }));
     setProducts(mappedProducts);
     setLoading(false);
@@ -47,9 +50,9 @@ export default function AdminProducts() {
   );
 
   return (
-    <div className="p-8 min-h-screen">
+    <div className="p-4 sm:p-8 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white">Products</h1>
           <p className="text-white/40 text-sm mt-1">{products.length} items in catalogue</p>
@@ -83,7 +86,7 @@ export default function AdminProducts() {
           </svg>
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/8 overflow-hidden">
+        <div className="rounded-2xl border border-white/8 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/8 bg-white/3">
@@ -110,6 +113,13 @@ export default function AdminProducts() {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={product.image} alt={product.name} className="w-10 h-10 object-contain rounded-lg bg-white/5 p-1 flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }} />
                         <span className="text-white font-medium truncate max-w-[180px]">{product.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImages(product.image_urls || [product.image])}
+                          className="text-[11px] text-blue-300 border border-blue-400/30 rounded-full px-2 py-1 hover:bg-blue-500/10"
+                        >
+                          View Images
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -137,6 +147,26 @@ export default function AdminProducts() {
           </table>
         </div>
       )}
+      <AnimatePresence>
+        {previewImages && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => setPreviewImages(null)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#0c0c10] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold">Product Images</h3>
+                <button className="text-white/60 hover:text-white" onClick={() => setPreviewImages(null)}>Close</button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {previewImages.slice(0, 4).map((img, index) => (
+                  <div key={`${img}-${index}`} className="rounded-xl overflow-hidden border border-white/10">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img} alt={`Product image ${index + 1}`} className="w-full h-32 object-cover" />
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

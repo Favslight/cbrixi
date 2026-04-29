@@ -11,8 +11,8 @@ interface FormState {
   name: string;
   price: string;
   description: string;
-  image: File | null;
-  imagePreview: string;
+  images: File[];
+  imagePreviews: string[];
   category: string;
   minimum_deposit_percentage: number;
   installment_duration_months: number;
@@ -29,8 +29,8 @@ export default function NewProduct() {
     name: '',
     price: '',
     description: '',
-    image: null,
-    imagePreview: '',
+    images: [],
+    imagePreviews: [],
     category: 'Smart Watches',
     minimum_deposit_percentage: 20,
     installment_duration_months: 12,
@@ -53,20 +53,19 @@ export default function NewProduct() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setForm((prev) => ({
-        ...prev,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      }));
-    }
+    const selected = Array.from(e.target.files || []).slice(0, 4);
+    const previews = selected.map((file) => URL.createObjectURL(file));
+    setForm((prev) => ({
+      ...prev,
+      images: selected,
+      imagePreviews: previews
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price.toString().trim() || !form.description.trim() || !form.image) {
-      setError('Please fill in all required fields, including uploading an image.');
+    if (!form.name.trim() || !form.price.toString().trim() || !form.description.trim() || form.images.length === 0) {
+      setError('Please fill in all required fields and upload at least one image.');
       return;
     }
     setLoading(true);
@@ -86,8 +85,12 @@ export default function NewProduct() {
       formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required.toString());
       formData.append('grace_period_days', form.grace_period_days.toString());
 
-      // Append file last to ensure fastify-multipart parses text fields first
-      formData.append('image', form.image);
+      form.images.forEach((image, index) => {
+        if (index === 0) {
+          formData.append('image', image);
+        }
+        formData.append('images', image);
+      });
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
@@ -113,7 +116,7 @@ export default function NewProduct() {
   const labelClass = 'block text-sm font-medium text-white/70 mb-2';
 
   return (
-    <div className="p-8 min-h-screen max-w-2xl">
+    <div className="p-4 sm:p-8 min-h-screen max-w-2xl">
       {/* Back link */}
       <Link href="/admin/products">
         <motion.span whileHover={{ x: -3 }} className="inline-flex items-center gap-1.5 text-white/40 hover:text-white text-sm mb-6 cursor-pointer transition-colors">
@@ -142,7 +145,7 @@ export default function NewProduct() {
       <motion.form
         onSubmit={handleSubmit}
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5 }}
-        className="space-y-6 bg-white/3 border border-white/8 rounded-3xl p-8"
+        className="space-y-6 bg-white/3 border border-white/8 rounded-3xl p-5 sm:p-8"
       >
         {/* Product Name */}
         <div>
@@ -219,12 +222,18 @@ export default function NewProduct() {
 
         {/* Image Upload */}
         <div>
-          <label className={labelClass}>Product Image <span className="text-red-400">*</span></label>
-          <input type="file" accept="image/*" onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" required />
-          {form.imagePreview && (
-            <div className="mt-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={form.imagePreview} alt="Preview" className="w-24 h-24 object-contain rounded-lg bg-white/5 p-2" />
+          <label className={labelClass}>Product Images (up to 4) <span className="text-red-400">*</span></label>
+          <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" required />
+          <p className="text-xs text-white/40 mt-2">The first image becomes the thumbnail (legacy image).</p>
+          {form.imagePreviews.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {form.imagePreviews.map((preview, index) => (
+                <div key={preview} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-20 object-cover rounded-lg bg-white/5 p-1" />
+                  {index === 0 && <span className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
+                </div>
+              ))}
             </div>
           )}
         </div>

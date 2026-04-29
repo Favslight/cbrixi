@@ -13,7 +13,12 @@ const navItems = [
   { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
 ];
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -24,14 +29,26 @@ export default function AdminSidebar() {
   };
 
   return (
-    <aside className="w-64 min-h-screen bg-gray-950 border-r border-white/8 flex flex-col fixed top-0 left-0 z-40">
-      {/* Logo */}
-      <div className="px-6 py-5 border-b border-white/8">
-        <CbrixiLogo textSize="text-lg" />
-        <span className="mt-2 inline-block text-[10px] font-semibold tracking-widest uppercase text-blue-400/70 bg-blue-500/10 border border-blue-500/20 rounded-full px-2 py-0.5">
-          Admin Portal
-        </span>
-      </div>
+    <>
+      <div
+        className={`fixed inset-0 z-30 bg-black/50 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        onClick={onClose}
+      />
+      <aside className={`w-64 min-h-screen bg-gray-950 border-r border-white/8 flex flex-col fixed top-0 left-0 z-40 transform transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Logo */}
+        <div className="px-6 py-5 border-b border-white/8">
+          <div className="flex items-center justify-between lg:block">
+            <CbrixiLogo textSize="text-lg" />
+            <button type="button" onClick={onClose} className="lg:hidden text-white/60 hover:text-white" aria-label="Close navigation">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <span className="mt-2 inline-block text-[10px] font-semibold tracking-widest uppercase text-blue-400/70 bg-blue-500/10 border border-blue-500/20 rounded-full px-2 py-0.5">
+            Admin Portal
+          </span>
+        </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1">
@@ -70,7 +87,8 @@ export default function AdminSidebar() {
         </motion.button>
         <p className="text-white/20 text-xs text-center mt-3">CBRIXI Admin v1.0</p>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 

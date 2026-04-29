@@ -15,10 +15,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     setAdminName(localStorage.getItem('adminName') ?? 'Admin');
     const token = localStorage.getItem('adminToken') ?? '';
-    fetch('/api/admin/products', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => setProductCount(d.products?.length ?? 0))
-      .catch(() => { });
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
+    fetch(`${API_URL}/admin/products`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (!r.ok) return { products: [] };
+        return r.json();
+      })
+      .then((d) => setProductCount(Array.isArray(d.products) ? d.products.length : 0))
+      .catch(() => setProductCount(0));
   }, []);
 
   const stats: Stat[] = [
@@ -29,11 +33,11 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="p-8 min-h-screen">
+    <div className="p-4 sm:p-8 min-h-screen">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-10">
         <p className="text-white/40 text-sm uppercase tracking-widest mb-1">Welcome back,</p>
-        <h1 className="text-4xl font-bold text-white">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white">
           {adminName} <span className="gradient-text">Dashboard</span>
         </h1>
         <p className="text-white/50 mt-1 text-sm">Here's what's happening at CBRIXI today.</p>

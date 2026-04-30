@@ -31,15 +31,19 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
   return (
     <>
       <div
-        className={`fixed inset-0 z-30 bg-black/50 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-[45] bg-black/50 transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={onClose}
+        aria-hidden={!isOpen}
       />
-      <aside className={`w-64 min-h-screen bg-gray-950 border-r border-white/8 flex flex-col fixed top-0 left-0 z-40 transform transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside
+        id="admin-sidebar-nav"
+        className={`w-64 max-w-[min(100vw,16rem)] h-[100dvh] max-h-[100dvh] bg-gray-950 border-r border-white/8 flex flex-col fixed top-0 left-0 z-50 transform transition-transform duration-300 ease-out shadow-2xl shadow-black/40 lg:z-30 lg:translate-x-0 lg:shadow-none ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
         {/* Logo */}
         <div className="px-6 py-5 border-b border-white/8">
           <div className="flex items-center justify-between lg:block">
             <CbrixiLogo textSize="text-lg" />
-            <button type="button" onClick={onClose} className="lg:hidden text-white/60 hover:text-white" aria-label="Close navigation">
+            <button type="button" onClick={onClose} className="text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/5 lg:hidden" aria-label="Close navigation">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -51,11 +55,11 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
         </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-6 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-6 space-y-1" aria-label="Admin">
         {navItems.map(({ label, href, icon: Icon }) => {
           const active = pathname === href || (href !== '/admin' && pathname.startsWith(href));
           return (
-            <Link key={href} href={href}>
+            <Link key={href} href={href} onClick={() => onClose?.()} scroll>
               <motion.div
                 whileHover={{ x: 4 }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${active

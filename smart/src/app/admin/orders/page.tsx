@@ -101,13 +101,13 @@ export default function AdminOrdersPage() {
     const totalPending = orders.reduce((a, o) => a + Number(o.total_amount), 0);
 
     return (
-        <div className="p-8 min-h-screen">
+        <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
             {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-                <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-3xl font-bold text-white">Pending Orders</h1>
+            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 sm:mb-8">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 mb-1">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white">Pending Orders</h1>
                     {orders.length > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 animate-pulse">
+                        <span className="w-fit px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 animate-pulse">
                             {orders.length} awaiting approval
                         </span>
                     )}
@@ -118,7 +118,7 @@ export default function AdminOrdersPage() {
             </motion.div>
 
             {/* Stats row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 sm:mb-8">
                 {[
                     { label: 'Awaiting Approvals', value: orders.length, icon: '📦', color: 'from-blue-500/20 to-blue-900/10 border-blue-500/20' },
                     { label: 'Total Value', value: fmt(totalPending), icon: '💰', color: 'from-emerald-500/20 to-emerald-900/10 border-emerald-500/20' },
@@ -165,8 +165,73 @@ export default function AdminOrdersPage() {
                     <p className="text-white/40 text-sm">No orders awaiting approval.</p>
                 </motion.div>
             ) : (
-                <div className="rounded-2xl border border-white/8 overflow-hidden">
-                    <table className="w-full text-sm">
+                <>
+                {/* Mobile cards */}
+                <div className="space-y-3 lg:hidden">
+                    <AnimatePresence>
+                        {filtered.map((o, i) => (
+                            <motion.div
+                                key={o.id}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: (successId === o.id || rejectedId === o.id) ? 0 : 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                transition={{ delay: i * 0.03 }}
+                                className={`rounded-2xl border border-white/8 bg-white/[0.03] p-4 ${successId === o.id ? 'ring-1 ring-green-500/30' : ''} ${rejectedId === o.id ? 'ring-1 ring-red-500/30' : ''}`}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm shrink-0">📦</div>
+                                    <div className="min-w-0 flex-1 space-y-2">
+                                        <p className="text-white font-mono text-xs break-all">{o.id}</p>
+                                        <p className="text-white/40 text-xs font-mono">User: {o.user_id}</p>
+                                        <p className="text-white font-bold text-lg tabular-nums">{fmt(o.total_amount)}</p>
+                                        {o.deposit_amount && <p className="text-white/50 text-xs">Deposit: {fmt(o.deposit_amount)}</p>}
+                                        {o.external_email ? (
+                                            <p className="text-blue-300 text-xs break-all">{o.external_email}</p>
+                                        ) : (
+                                            <p className="text-white/30 text-xs italic">No external email</p>
+                                        )}
+                                        <p className="text-white/50 text-xs">{fmtDate(o.created_at)}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-4 pt-3 border-t border-white/8">
+                                    {confirmAction?.id === o.id ? (
+                                        <div className="flex flex-col gap-2">
+                                            <motion.button whileTap={{ scale: 0.98 }}
+                                                onClick={() => handleAction(o.id, confirmAction.type === 'APPROVE' ? 'approve' : 'reject')}
+                                                disabled={processingId === o.id}
+                                                className={`w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 ${confirmAction.type === 'APPROVE' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                {processingId === o.id ? <><Spinner sm /> Processing…</> : 'Confirm'}
+                                            </motion.button>
+                                            <motion.button whileTap={{ scale: 0.98 }}
+                                                onClick={() => setConfirmAction(null)}
+                                                className="w-full py-2 rounded-xl text-sm text-white/60 border border-white/10">
+                                                Cancel
+                                            </motion.button>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <motion.button whileTap={{ scale: 0.98 }}
+                                                onClick={() => setConfirmAction({ id: o.id, type: 'APPROVE' })}
+                                                disabled={processingId === o.id || successId === o.id || rejectedId === o.id}
+                                                className="py-2.5 rounded-xl text-xs font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 disabled:opacity-40">
+                                                {successId === o.id ? 'Approved' : 'Approve'}
+                                            </motion.button>
+                                            <motion.button whileTap={{ scale: 0.98 }}
+                                                onClick={() => setConfirmAction({ id: o.id, type: 'REJECT' })}
+                                                disabled={processingId === o.id || successId === o.id || rejectedId === o.id}
+                                                className="py-2.5 rounded-xl text-xs font-semibold text-red-400 border border-red-500/20 bg-red-500/5 disabled:opacity-40">
+                                                {rejectedId === o.id ? 'Rejected' : 'Reject'}
+                                            </motion.button>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </div>
+
+                <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
+                    <table className="w-full text-sm min-w-[900px]">
                         <thead>
                             <tr className="border-b border-white/8 bg-white/3">
                                 <th className="text-left px-5 py-3.5 text-white/40 font-medium">Order ID</th>
@@ -258,6 +323,7 @@ export default function AdminOrdersPage() {
                         </tbody>
                     </table>
                 </div>
+                </>
             )}
         </div>
     );

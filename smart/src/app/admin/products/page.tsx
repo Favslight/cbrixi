@@ -1,235 +1,346 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 interface Product {
-  id: string; name: string; price: string;
-  description: string; image: string; category: string; createdAt: string;
-  image_urls?: string[];
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  description: string;
+  image: string;
+  image_urls: string[];
+  gradient: string;
+  stock: number;
+  status: 'active' | 'inactive';
 }
 
-export default function AdminProducts() {
+export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [previewImages, setPreviewImages] = useState<string[] | null>(null);
+  const [error, setError] = useState('');
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    category: '',
+    price: '',
+    description: '',
+    image: '',
+    stock: '',
+    status: 'active' as 'active' | 'inactive'
+  });
+  const router = useRouter();
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') ?? '' : '';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
-    const res = await fetch(`${API_URL}/admin/products`, { headers: { Authorization: `Bearer ${token}` } });
-    const d = await res.json();
-    const mappedProducts = (d.products || []).map((p: any) => ({
-      ...p,
-      image: p.image_url || p.image || '/images/smartwatch.png',
-      image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 4)
-    }));
-    setProducts(mappedProducts);
-    setLoading(false);
-  }, [token]);
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      router.push('/auth/login');
+      return;
+    }
+    fetchProducts();
+  }, [router]);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this product?')) return;
-    setDeletingId(id);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
-    await fetch(`${API_URL}/admin/products/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    setProducts((p) => p.filter((x) => x.id !== id));
-    setDeletingId(null);
+  const fetchProducts = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/products`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProducts(data.products);
+      } else {
+        setError('Failed to fetch products');
+      }
+    } catch (err) {
+      setError('Connection error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filtered = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = localStorage.getItem('adminToken');
+    
+    try {
+      const url = editingProduct 
+        ? `${API_URL}/admin/products/${editingProduct.id}`
+        : `${API_URL}/admin/products`;
+      
+      const method = editingProduct ? 'PUT' : 'POST';
+      
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...formData,
+          price: parseFloat(formData.price),
+          stock: parseInt(formData.stock)
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        fetchProducts();
+        resetForm();
+      } else {
+        setError('Failed to save product');
+      }
+    } catch (err) {
+      setError('Connection error');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+    
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        fetchProducts();
+      } else {
+        setError('Failed to delete product');
+      }
+    } catch (err) {
+      setError('Connection error');
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      category: '',
+      price: '',
+      description: '',
+      image: '',
+      stock: '',
+      status: 'active'
+    });
+    setEditingProduct(null);
+  };
+
+  const startEdit = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      category: product.category,
+      price: product.price.toString(),
+      description: product.description,
+      image: product.image,
+      stock: product.stock.toString(),
+      status: product.status
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#07070a] text-white flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Products</h1>
-          <p className="text-white/40 text-sm mt-1">{products.length} items in catalogue</p>
-        </div>
-        <Link href="/admin/products/new">
-          <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold text-sm cursor-pointer shadow-lg shadow-blue-500/25">
-            <span className="text-lg">＋</span> Add Product
-          </motion.div>
-        </Link>
-      </div>
+    <div className="min-h-screen bg-[#07070a] text-white p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Product Management</h1>
+        
+        {error && (
+          <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400">
+            {error}
+          </div>
+        )}
 
-      {/* Search */}
-      <div className="relative mb-6 max-w-sm">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search products or categories…"
-          className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
-        />
-      </div>
-
-      {/* Table */}
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <svg className="w-8 h-8 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-        </div>
-      ) : (
-        <>
-        {/* Mobile / small tablet: cards */}
-        <div className="space-y-3 lg:hidden">
-          <AnimatePresence>
-            {filtered.map((product, i) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ delay: i * 0.04 }}
-                className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
+        {/* Add/Edit Product Form */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">
+            {editingProduct ? 'Edit Product' : 'Add New Product'}
+          </h2>
+          
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Product Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Category</label>
+              <input
+                type="text"
+                value={formData.category}
+                onChange={(e) => setFormData({...formData, category: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Price (₦)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Stock</label>
+              <input
+                type="number"
+                value={formData.stock}
+                onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 h-24"
+                required
+              />
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Image URL</label>
+              <input
+                type="url"
+                value={formData.image}
+                onChange={(e) => setFormData({...formData, image: e.target.value})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({...formData, status: e.target.value as 'active' | 'inactive'})}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
               >
-                <div className="flex gap-3 min-w-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={product.image} alt="" className="w-14 h-14 object-contain rounded-xl bg-white/5 p-1 shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white font-semibold text-sm leading-snug">{product.name}</p>
-                    <p className="text-white font-bold mt-1">{product.price}</p>
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">{product.category}</span>
-                      <span className="text-white/40 text-xs">{product.createdAt}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewImages(product.image_urls || [product.image])}
-                        className="text-xs text-blue-300 border border-blue-400/30 rounded-lg px-3 py-1.5 hover:bg-blue-500/10"
-                      >
-                        View images
-                      </button>
-                      <motion.button
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handleDelete(product.id)}
-                        disabled={deletingId === product.id}
-                        className="text-xs font-medium text-red-400 border border-red-500/20 bg-red-500/5 rounded-lg px-3 py-1.5 disabled:opacity-40"
-                      >
-                        {deletingId === product.id ? 'Deleting…' : 'Delete'}
-                      </motion.button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          {filtered.length === 0 && (
-            <p className="text-center py-12 text-white/30 rounded-2xl border border-white/8">No products found.</p>
-          )}
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            
+            <div className="md:col-span-2 flex gap-4">
+              <button
+                type="submit"
+                className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+              >
+                {editingProduct ? 'Update Product' : 'Add Product'}
+              </button>
+              
+              {editingProduct && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-6 py-2 bg-gray-600 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
         </div>
 
-        {/* Desktop: table */}
-        <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
-          <table className="w-full text-sm min-w-[720px]">
-            <thead>
-              <tr className="border-b border-white/8 bg-white/3">
-                <th className="text-left px-5 py-3.5 text-white/40 font-medium">Product</th>
-                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Category</th>
-                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Price</th>
-                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Added</th>
-                <th className="px-4 py-3.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filtered.map((product, i) => (
-                  <motion.tr
-                    key={product.id}
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 12 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="border-b border-white/5 hover:bg-white/3 transition-colors"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={product.image} alt={product.name} className="w-10 h-10 object-contain rounded-lg bg-white/5 p-1 flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }} />
-                        <span className="text-white font-medium truncate max-w-[200px] xl:max-w-[280px]">{product.name}</span>
+        {/* Products List */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6">
+          <h2 className="text-xl font-semibold mb-4">Products ({products.length})</h2>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/20">
+                  <th className="text-left py-3 px-4">Product</th>
+                  <th className="text-left py-3 px-4">Category</th>
+                  <th className="text-left py-3 px-4">Price</th>
+                  <th className="text-left py-3 px-4">Stock</th>
+                  <th className="text-left py-3 px-4">Status</th>
+                  <th className="text-left py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((product) => (
+                  <tr key={product.id} className="border-b border-white/10">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-12 h-12 object-cover rounded-lg"
+                        />
+                        <span className="font-medium">{product.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">{product.category}</td>
+                    <td className="py-3 px-4">₦{product.price.toLocaleString()}</td>
+                    <td className="py-3 px-4">{product.stock}</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        product.status === 'active' 
+                          ? 'bg-green-500/20 text-green-400' 
+                          : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {product.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
                         <button
-                          type="button"
-                          onClick={() => setPreviewImages(product.image_urls || [product.image])}
-                          className="text-[11px] text-blue-300 border border-blue-400/30 rounded-full px-2 py-1 hover:bg-blue-500/10"
+                          onClick={() => startEdit(product)}
+                          className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
                         >
-                          View Images
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product.id)}
+                          className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                        >
+                          Delete
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">{product.category}</span>
-                    </td>
-                    <td className="px-4 py-4 text-white font-semibold">{product.price}</td>
-                    <td className="px-4 py-4 text-white/40">{product.createdAt}</td>
-                    <td className="px-4 py-4">
-  <div className="flex items-center justify-end gap-2">
-    <Link href={`/admin/products/${product.id}/edit`}>
-      <motion.div
-        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-        className="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-blue-500/25 bg-blue-500/10 hover:bg-blue-500/20 transition-colors cursor-pointer"
-      >
-        Edit
-      </motion.div>
-    </Link>
-    <motion.button
-      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-      onClick={() => handleDelete(product.id)}
-      disabled={deletingId === product.id}
-      className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 transition-colors disabled:opacity-40"
-    >
-      {deletingId === product.id ? '�' : 'Delete'}
-    </motion.button>
-  </div>
-</td>
-                  </motion.tr>
+                  </tr>
                 ))}
-              </AnimatePresence>
-              {filtered.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-12 text-white/30">No products found.</td></tr>
-              )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+            
+            {products.length === 0 && (
+              <div className="text-center py-8 text-white/50">
+                No products found. Add your first product above.
+              </div>
+            )}
+          </div>
         </div>
-        </>
-      )}
-      <AnimatePresence>
-        {previewImages && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => setPreviewImages(null)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl max-h-[85dvh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c10] p-4 sm:p-5 mx-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-semibold">Product Images</h3>
-                <button className="text-white/60 hover:text-white" onClick={() => setPreviewImages(null)}>Close</button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {previewImages.slice(0, 4).map((img, index) => (
-                  <div key={`${img}-${index}`} className="rounded-xl overflow-hidden border border-white/10">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img} alt={`Product image ${index + 1}`} className="w-full h-32 object-cover" />
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
-

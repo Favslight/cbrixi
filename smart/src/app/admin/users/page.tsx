@@ -113,17 +113,17 @@ export default function AdminUsersPage() {
     );
 
     return (
-        <div className="p-8 min-h-screen">
+        <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
             {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-                <h1 className="text-3xl font-bold text-white">Users</h1>
-                <p className="text-white/40 text-sm mt-1">
-                    {users.length} registered customers · {fmt(totalRevenue)} collected
+            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">Users</h1>
+                <p className="text-white/40 text-sm mt-1 leading-relaxed">
+                    {users.length} registered customers · <span className="text-white/60 tabular-nums">{fmt(totalRevenue)}</span> collected
                 </p>
             </motion.div>
 
             {/* Stats row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
                 {[
                     { label: 'Total Users', value: users.length, icon: '👥', color: 'from-blue-500/20 to-blue-900/10 border-blue-500/20' },
                     { label: 'Active Users', value: users.filter(u => u.status === 'ACTIVE').length, icon: '✅', color: 'from-emerald-500/20 to-emerald-900/10 border-emerald-500/20' },
@@ -132,9 +132,9 @@ export default function AdminUsersPage() {
                 ].map((s, i) => (
                     <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.08 }} whileHover={{ y: -3 }}
-                        className={`rounded-2xl p-5 border bg-gradient-to-br ${s.color}`}>
+                        className={`rounded-2xl p-4 sm:p-5 border bg-gradient-to-br ${s.color}`}>
                         <div className="text-2xl mb-2">{s.icon}</div>
-                        <p className="text-xl font-bold text-white">{s.value}</p>
+                        <p className="text-lg sm:text-xl font-bold text-white tabular-nums break-words">{s.value}</p>
                         <p className="text-white/50 text-xs mt-0.5">{s.label}</p>
                     </motion.div>
                 ))}
@@ -173,7 +173,7 @@ export default function AdminUsersPage() {
 
                                     {/* User row */}
                                     <button onClick={() => setExpanded(isOpen ? null : user.id)}
-                                        className="w-full flex items-center gap-4 px-6 py-4 hover:bg-white/4 transition-colors text-left">
+                                        className="w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 hover:bg-white/4 transition-colors text-left">
                                         {/* Avatar */}
                                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
                                             {(user.name || user.email)?.[0]?.toUpperCase() ?? '?'}
@@ -182,9 +182,13 @@ export default function AdminUsersPage() {
                                         <div className="flex-1 min-w-0">
                                             <p className="font-semibold text-white truncate">{user.name || user.username || '—'}</p>
                                             <p className="text-white/40 text-xs truncate">{user.email}</p>
+                                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 sm:hidden text-xs">
+                                                <span className="text-white/50">{user.orders.length} orders</span>
+                                                <span className="text-emerald-400/90 font-medium tabular-nums">{fmt(totalPaid)} paid</span>
+                                            </div>
                                         </div>
 
-                                        <div className="hidden sm:flex items-center gap-6 text-sm">
+                                        <div className="hidden sm:flex items-center gap-4 md:gap-6 text-sm shrink-0">
                                             <div className="text-right">
                                                 <p className="text-white/40 text-xs">Orders</p>
                                                 <p className="font-semibold">{user.orders.length}</p>
@@ -214,10 +218,10 @@ export default function AdminUsersPage() {
                                                 initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }}
                                                 className="overflow-hidden border-t border-white/8">
-                                                <div className="px-6 py-5 space-y-4">
+                                                <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4">
 
                                                     {/* User meta */}
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                                                         {[
                                                             { label: 'Email', val: user.email },
                                                             { label: 'Username', val: user.username || '—' },
@@ -245,8 +249,8 @@ export default function AdminUsersPage() {
                                                                     <div key={order.id} className="rounded-xl border border-white/8 bg-white/3 overflow-hidden">
                                                                         {/* Order header */}
                                                                         <button onClick={() => setExpandedOrder(orderOpen ? null : order.id)}
-                                                                            className="w-full flex items-center gap-4 px-4 py-3 hover:bg-white/4 transition-colors text-left">
-                                                                            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                                                            className="w-full flex items-start sm:items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 hover:bg-white/4 transition-colors text-left min-w-0">
+                                                                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs min-w-0">
                                                                                 <div>
                                                                                     <p className="text-white/40">Order ID</p>
                                                                                     <p className="font-mono text-white/80 truncate">{order.id.slice(0, 12)}…</p>

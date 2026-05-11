@@ -50,7 +50,7 @@ export default function AdminProducts() {
   );
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen">
+    <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
@@ -86,8 +86,59 @@ export default function AdminProducts() {
           </svg>
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/8 overflow-x-auto">
-          <table className="w-full text-sm">
+        <>
+        {/* Mobile / small tablet: cards */}
+        <div className="space-y-3 lg:hidden">
+          <AnimatePresence>
+            {filtered.map((product, i) => (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ delay: i * 0.04 }}
+                className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
+              >
+                <div className="flex gap-3 min-w-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={product.image} alt="" className="w-14 h-14 object-contain rounded-xl bg-white/5 p-1 shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-semibold text-sm leading-snug">{product.name}</p>
+                    <p className="text-white font-bold mt-1">{product.price}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">{product.category}</span>
+                      <span className="text-white/40 text-xs">{product.createdAt}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImages(product.image_urls || [product.image])}
+                        className="text-xs text-blue-300 border border-blue-400/30 rounded-lg px-3 py-1.5 hover:bg-blue-500/10"
+                      >
+                        View images
+                      </button>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => handleDelete(product.id)}
+                        disabled={deletingId === product.id}
+                        className="text-xs font-medium text-red-400 border border-red-500/20 bg-red-500/5 rounded-lg px-3 py-1.5 disabled:opacity-40"
+                      >
+                        {deletingId === product.id ? 'Deleting…' : 'Delete'}
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {filtered.length === 0 && (
+            <p className="text-center py-12 text-white/30 rounded-2xl border border-white/8">No products found.</p>
+          )}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-white/8 bg-white/3">
                 <th className="text-left px-5 py-3.5 text-white/40 font-medium">Product</th>
@@ -109,10 +160,10 @@ export default function AdminProducts() {
                     className="border-b border-white/5 hover:bg-white/3 transition-colors"
                   >
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={product.image} alt={product.name} className="w-10 h-10 object-contain rounded-lg bg-white/5 p-1 flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }} />
-                        <span className="text-white font-medium truncate max-w-[180px]">{product.name}</span>
+                        <span className="text-white font-medium truncate max-w-[200px] xl:max-w-[280px]">{product.name}</span>
                         <button
                           type="button"
                           onClick={() => setPreviewImages(product.image_urls || [product.image])}
@@ -156,11 +207,12 @@ export default function AdminProducts() {
             </tbody>
           </table>
         </div>
+        </>
       )}
       <AnimatePresence>
         {previewImages && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => setPreviewImages(null)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#0c0c10] p-5">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl max-h-[85dvh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c10] p-4 sm:p-5 mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold">Product Images</h3>
                 <button className="text-white/60 hover:text-white" onClick={() => setPreviewImages(null)}>Close</button>

@@ -116,7 +116,7 @@ export default function NewProduct() {
   const labelClass = 'block text-sm font-medium text-white/70 mb-2';
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen max-w-2xl">
+    <div className="p-4 pb-8 sm:p-8 min-h-screen w-full max-w-2xl">
       {/* Back link */}
       <Link href="/admin/products">
         <motion.span whileHover={{ x: -3 }} className="inline-flex items-center gap-1.5 text-white/40 hover:text-white text-sm mb-6 cursor-pointer transition-colors">
@@ -239,22 +239,22 @@ export default function NewProduct() {
         </div>
 
         {/* Submit */}
-        <div className="flex gap-3 pt-2">
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-stretch">
+          <Link href="/admin/products" className="sm:shrink-0">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-semibold text-white/60 border border-white/10 hover:border-white/20 hover:text-white transition-all cursor-pointer text-center">
+              Cancel
+            </motion.div>
+          </Link>
           <motion.button
             type="submit" disabled={loading}
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            className="flex-1 py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 min-h-[48px] py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg> Creating…</>
             ) : '＋ Create Product'}
           </motion.button>
-          <Link href="/admin/products">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-              className="px-6 py-3.5 rounded-xl font-semibold text-white/60 border border-white/10 hover:border-white/20 hover:text-white transition-all cursor-pointer text-center">
-              Cancel
-            </motion.div>
-          </Link>
         </div>
       </motion.form>
     </div>

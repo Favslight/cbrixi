@@ -98,19 +98,19 @@ export default function AdminPaymentsPage() {
     const totalPending = payments.reduce((a, p) => a + Number(p.amount), 0);
 
     return (
-        <div className="p-8 min-h-screen">
+        <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
             {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-                <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-3xl font-bold text-white">Pending Payments</h1>
+            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 sm:mb-8">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 mb-1">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white">Pending Payments</h1>
                     {payments.length > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 animate-pulse">
+                        <span className="w-fit px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 animate-pulse">
                             {payments.length} pending
                         </span>
                     )}
                 </div>
-                <p className="text-white/40 text-sm">
-                    Bank transfer payments awaiting your approval · {fmt(totalPending)} total pending
+                <p className="text-white/40 text-sm leading-relaxed">
+                    Bank transfer payments awaiting your approval · <span className="text-white/60 tabular-nums">{fmt(totalPending)}</span> total pending
                 </p>
             </motion.div>
 
@@ -163,8 +163,66 @@ export default function AdminPaymentsPage() {
                     <p className="text-white/40 text-sm">No pending bank transfer payments.</p>
                 </motion.div>
             ) : (
-                <div className="rounded-2xl border border-white/8 overflow-hidden">
-                    <table className="w-full text-sm">
+                <>
+                <div className="space-y-3 lg:hidden">
+                    <AnimatePresence>
+                        {filtered.map((p, i) => (
+                            <motion.div
+                                key={p.id}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: successId === p.id ? 0 : 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                transition={{ delay: i * 0.03 }}
+                                className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold shrink-0">
+                                        {p.firstname?.[0]?.toUpperCase() ?? '?'}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-white font-medium">{p.firstname} {p.lastname}</p>
+                                        <p className="text-white/40 text-xs font-mono mt-0.5 break-all">{p.user_id}</p>
+                                        <p className="text-white font-bold text-lg mt-2 tabular-nums">{fmt(p.amount)}</p>
+                                        <code className="inline-block mt-2 text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1 font-mono break-all max-w-full">
+                                            {p.reference}
+                                        </code>
+                                        <p className="text-white/50 text-xs mt-2">{fmtDate(p.created_at)}</p>
+                                        <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-semibold border ${p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
+                                            {p.installment_id ? 'Instalment' : 'Full payment'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="mt-4 pt-3 border-t border-white/8">
+                                    {confirmId === p.id ? (
+                                        <div className="flex flex-col gap-2">
+                                            <motion.button whileTap={{ scale: 0.98 }}
+                                                onClick={() => handleApprove(p.id)}
+                                                disabled={approvingId === p.id}
+                                                className="w-full py-2.5 rounded-xl text-sm font-bold bg-green-500 text-white flex items-center justify-center gap-2 disabled:opacity-50">
+                                                {approvingId === p.id ? <><Spinner sm /> Approving…</> : 'Confirm'}
+                                            </motion.button>
+                                            <motion.button whileTap={{ scale: 0.98 }}
+                                                onClick={() => setConfirmId(null)}
+                                                className="w-full py-2 rounded-xl text-sm text-white/60 border border-white/10">
+                                                Cancel
+                                            </motion.button>
+                                        </div>
+                                    ) : (
+                                        <motion.button whileTap={{ scale: 0.98 }}
+                                            onClick={() => setConfirmId(p.id)}
+                                            disabled={approvingId === p.id || successId === p.id}
+                                            className="w-full py-2.5 rounded-xl text-sm font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 disabled:opacity-40">
+                                            {successId === p.id ? 'Approved' : 'Approve payment'}
+                                        </motion.button>
+                                    )}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </div>
+
+                <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
+                    <table className="w-full text-sm min-w-[960px]">
                         <thead>
                             <tr className="border-b border-white/8 bg-white/3">
                                 <th className="text-left px-5 py-3.5 text-white/40 font-medium">Customer</th>
@@ -251,6 +309,7 @@ export default function AdminPaymentsPage() {
                         </tbody>
                     </table>
                 </div>
+                </>
             )}
         </div>
     );

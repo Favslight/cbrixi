@@ -33,11 +33,11 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen">
+    <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-10">
         <p className="text-white/40 text-sm uppercase tracking-widest mb-1">Welcome back,</p>
-        <h1 className="text-3xl sm:text-4xl font-bold text-white">
+        <h1 className="text-2xl sm:text-4xl font-bold text-white break-words">
           {adminName} <span className="gradient-text">Dashboard</span>
         </h1>
         <p className="text-white/50 mt-1 text-sm">Here's what's happening at CBRIXI today.</p>
@@ -55,7 +55,7 @@ export default function AdminDashboard() {
             className={`rounded-2xl p-6 border bg-gradient-to-br ${stat.color} relative overflow-hidden`}
           >
             <div className="text-3xl mb-3">{stat.icon}</div>
-            <p className="text-3xl font-bold text-white mb-1">{stat.value}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-white mb-1 tabular-nums break-all sm:break-normal">{stat.value}</p>
             <p className="text-white font-medium text-sm">{stat.label}</p>
             <p className="text-white/40 text-xs mt-0.5">{stat.sub}</p>
           </motion.div>
@@ -68,30 +68,30 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <Link href="/admin/products/new">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold cursor-pointer shadow-lg shadow-blue-500/20">
-              <span className="text-2xl">＋</span>
-              <div><p className="font-semibold">Add New Product</p><p className="text-white/70 text-xs font-normal">Create a product listing</p></div>
+              className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold cursor-pointer shadow-lg shadow-blue-500/20 min-w-0">
+              <span className="text-2xl shrink-0">＋</span>
+              <div className="min-w-0"><p className="font-semibold text-sm sm:text-base">Add New Product</p><p className="text-white/70 text-xs font-normal">Create a product listing</p></div>
             </motion.div>
           </Link>
           <Link href="/admin/products">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-4 px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors">
-              <span className="text-2xl">📋</span>
-              <div><p className="font-semibold">Manage Products</p><p className="text-white/50 text-xs font-normal">View &amp; delete listings</p></div>
+              className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-blue-500/40 transition-colors min-w-0">
+              <span className="text-2xl shrink-0">📋</span>
+              <div className="min-w-0"><p className="font-semibold text-sm sm:text-base">Manage Products</p><p className="text-white/50 text-xs font-normal">View &amp; delete listings</p></div>
             </motion.div>
           </Link>
           <Link href="/admin/users">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-4 px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-purple-500/40 transition-colors">
-              <span className="text-2xl">👥</span>
-              <div><p className="font-semibold">View Users</p><p className="text-white/50 text-xs font-normal">Orders &amp; instalment details</p></div>
+              className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-purple-500/40 transition-colors min-w-0">
+              <span className="text-2xl shrink-0">👥</span>
+              <div className="min-w-0"><p className="font-semibold text-sm sm:text-base">View Users</p><p className="text-white/50 text-xs font-normal">Orders &amp; instalment details</p></div>
             </motion.div>
           </Link>
           <Link href="/admin/payments">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-4 px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-yellow-500/40 transition-colors">
-              <span className="text-2xl">⏳</span>
-              <div><p className="font-semibold">Pending Payments</p><p className="text-white/50 text-xs font-normal">Approve bank transfers</p></div>
+              className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-yellow-500/40 transition-colors min-w-0">
+              <span className="text-2xl shrink-0">⏳</span>
+              <div className="min-w-0"><p className="font-semibold text-sm sm:text-base">Pending Payments</p><p className="text-white/50 text-xs font-normal">Approve bank transfers</p></div>
             </motion.div>
           </Link>
         </div>

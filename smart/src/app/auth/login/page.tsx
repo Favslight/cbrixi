@@ -51,7 +51,7 @@ export default function Login() {
         }
         
         // Redirect to landing page and reload to update Navbar
-        window.location.href = "/"; 
+        window.location.href = "/marketplace"; 
         return;
       }
 

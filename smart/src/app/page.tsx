@@ -1,5 +1,6 @@
 import Navbar from '../../components/Navbar';
 import Hero from '../../components/Hero';
+import WeeklyShowcase from '../../components/WeeklyShowcase';
 import Categories from '../../components/Categories';
 import WhyChoose from '../../components/WhyChoose';
 import CbrixiLogo from '../../components/CbrixiLogo';
@@ -9,6 +10,7 @@ export default function Home() {
     <main className="relative min-h-screen z-0">
       <Navbar />
       <Hero />
+      <WeeklyShowcase />
       <Categories />
       <WhyChoose />
       <Footer />

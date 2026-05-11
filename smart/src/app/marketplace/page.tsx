@@ -1,4 +1,3 @@
-import Navbar from '../../../components/Navbar';
 import Marketplace from '../../../components/Marketplace';
 import Link from 'next/link';
 import { products as allProducts } from '@/lib/productsStore';
@@ -13,10 +12,7 @@ const CATEGORY_SLUGS: Record<string, string> = {
 export default function MarketplacePage() {
     return (
         <main className="relative min-h-screen z-0">
-            <Navbar />
-            <div className="pt-20"> {/* Offset for Fixed Navbar */}
-                <Marketplace />
-            </div>
+            <Marketplace />
             <Footer />
         </main>
     );

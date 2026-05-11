@@ -37,20 +37,6 @@ const features: Feature[] = [
     },
 ];
 
-const containerVariants = {
-    hidden: {},
-    visible: { transition: { staggerChildren: 0.15 } },
-};
-
-const cardVariants: any = {
-    hidden: { opacity: 0, y: 40 },
-    visible: {
-        opacity: 1,
-        y: 0,
-        transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
-    },
-};
-
 export default function WhyChoose() {
     return (
         <section id="why-choose" className="relative py-28 overflow-hidden">
@@ -84,18 +70,18 @@ export default function WhyChoose() {
                     </p>
                 </motion.div>
 
-                {/* Feature cards */}
-                <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: '-80px' }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-8"
-                >
-                    {features.map((feature) => (
-                        <FeatureCard key={feature.title} feature={feature} />
-                    ))}
-                </motion.div>
+                {/* Continuous marquee */}
+                <div className="relative overflow-hidden">
+                    <motion.div
+                        className="flex gap-6 w-max"
+                        animate={{ x: ['0%', '-50%'] }}
+                        transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
+                    >
+                        {[...features, ...features].map((feature, index) => (
+                            <FeatureCard key={`${feature.title}-${index}`} feature={feature} />
+                        ))}
+                    </motion.div>
+                </div>
 
                 {/* CTA banner */}
                 <motion.div
@@ -134,10 +120,9 @@ export default function WhyChoose() {
 function FeatureCard({ feature }: { feature: Feature }) {
     return (
         <motion.div
-            variants={cardVariants}
             whileHover={{ y: -8 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className={`group glass-card rounded-2xl p-8 relative overflow-hidden shadow-xl hover:shadow-2xl ${feature.glowColor} transition-all duration-500`}
+            className={`group glass-card rounded-2xl p-8 relative overflow-hidden shadow-xl hover:shadow-2xl ${feature.glowColor} transition-all duration-500 w-[320px] sm:w-[360px] flex-shrink-0`}
         >
             {/* Top glow accent */}
             <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity duration-500" />

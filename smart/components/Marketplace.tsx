@@ -1,297 +1,442 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Product, products as localProducts } from '@/lib/productsStore';
-
 import { useRouter } from 'next/navigation';
+import CbrixiLogo from './CbrixiLogo';
 
 export default function Marketplace() {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [userLoggedIn, setUserLoggedIn] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
 
-    useEffect(() => {
-        const token = localStorage.getItem('userToken');
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
-        const headers: any = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
+  const mapProducts = (list: any[]): Product[] =>
+    (list || []).map((p: any) => ({
+      ...p,
+      image: p.image_url || p.image || '/images/smartwatch.png',
+      image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 4),
+      gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
+      price: p.price
+        ? typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '')
+          ? `₦${Number(p.price).toLocaleString()}`
+          : p.price.startsWith('₦') ? p.price : `₦${p.price}`
+        : '₦N/A',
+    }));
 
-        fetch(`${API_URL}/products`, { headers })
-            .then((res) => res.json())
-            .then((data) => {
-                const mappedProducts = (data.products || []).map((p: any) => ({
-                    ...p,
-                    image: p.image_url || p.image || '/images/smartwatch.png',
-                    image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 4),
-                    gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
-                    price: p.price ? (typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '') ? `₦${Number(p.price).toLocaleString()}` : p.price) : 'N/A'
-                }));
+  const fetchAllProducts = async () => {
+    if (typeof window === 'undefined') return;
+    
+    const token = localStorage.getItem('userToken');
+    const headers: any = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-                // If API returned no products, fall back to local seeded products
-                if (!mappedProducts || mappedProducts.length === 0) {
-                    setProducts(localProducts as Product[]);
-                } else {
-                    setProducts(mappedProducts);
-                }
+    try {
+      const res = await fetch(`${API_URL}/products`, { headers });
+      const data = await res.json();
+      const mapped = mapProducts(data.products || []);
+      setAllCategories(Array.from(new Set(mapped.map((p) => p.category).filter(Boolean))));
+      setProducts(mapped.length ? mapped : (localProducts as Product[]));
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProducts(localProducts as Product[]);
+    }
+  };
 
-                setLoading(false);
-            })
-            .catch(() => {
-                setProducts(localProducts as Product[]);
-                setLoading(false);
-            });
-    }, [router]);
+  const fetchByCategory = async (category: string) => {
+    if (typeof window === 'undefined') return;
+    
+    const token = localStorage.getItem('userToken');
+    const headers: any = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-    // Lock scroll when modal is open
-    useEffect(() => {
-        if (selectedProduct) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'auto';
-        }
-        return () => { document.body.style.overflow = 'auto'; };
-    }, [selectedProduct]);
+    try {
+      const res = await fetch(`${API_URL}/products/category/${encodeURIComponent(category)}`, { headers });
+      const data = await res.json();
+      if (!res.ok) {
+        setProducts([]);
+        return;
+      }
+      setProducts(mapProducts(data.products || []));
+    } catch (error) {
+      console.error('Error fetching category products:', error);
+      setProducts([]);
+    }
+  };
 
-    return (
-        <section id="marketplace" className="relative py-28 overflow-hidden bg-[#07070a]">
-            {/* Background accents */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-40 -left-64 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px]" />
-                <div className="absolute bottom-40 -right-64 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px]" />
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    setUserLoggedIn(!!localStorage.getItem('userToken'));
+
+    // Check if category is provided in URL
+    const params = new URLSearchParams(window.location.search);
+    const cat = params.get('category');
+    if (cat) {
+      setActiveCategory(cat);
+    }
+
+    setLoading(true);
+    fetchAllProducts()
+      .catch(() => setProducts(localProducts as Product[]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (activeCategory === 'All') {
+      setLoading(true);
+      fetchAllProducts()
+        .catch(() => setProducts(localProducts as Product[]))
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    setLoading(true);
+    fetchByCategory(activeCategory)
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, [activeCategory]);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [selectedProduct]);
+
+  const categories = useMemo(() => {
+    // Ensure the requested categories are always available at the top
+    const baseCategories = ['All', 'Smart Phones', 'Laptops', 'Smart Watches', 'Smart Home', 'Accessories', 'Vehicles', 'Audio Devices'];
+    const dynamicCats = allCategories.filter(c => !baseCategories.includes(c));
+    return [...baseCategories, ...dynamicCats];
+  }, [allCategories]);
+
+  const filteredProducts = useMemo(() => {
+    if (!search.trim()) return products;
+    const q = search.toLowerCase();
+    return products.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
+  }, [products, search]);
+
+  return (
+    <section id="marketplace" className="relative pb-20 min-h-screen bg-[#f4fcf9] dark:bg-[#07070a] transition-colors duration-300">
+        <div className="bg-white dark:bg-gray-950/80 dark:backdrop-blur-xl px-4 py-3 flex items-center justify-between shadow-sm dark:shadow-none dark:border-b dark:border-white/10 sticky top-0 z-50">
+          {/* Logo / Home */}
+          <div className="flex items-center">
+            <CbrixiLogo />
+          </div>
+
+          {/* Search Bar - Desktop Only */}
+          <div className="hidden md:flex flex-1 max-w-lg mx-4">
+            <div className="relative flex items-center border border-gray-300 dark:border-white/15 rounded-lg overflow-hidden bg-white dark:bg-white/5 h-10 w-full">
+              <div className="pl-3 text-gray-500 dark:text-white/40">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search products, Categories"
+                className="w-full h-full px-3 text-sm text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-white/40 focus:outline-none bg-transparent"
+              />
+              <button className="h-full px-5 bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
             </div>
+          </div>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: 32 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: '-80px' }}
-                    transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                    className="text-center mb-16"
+          {/* Right Actions */}
+          <div className="flex items-center gap-3">
+            {/* Search Icon - Only visible on mobile when search is closed */}
+            {!searchOpen && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="md:hidden text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2"
+                aria-label="Search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+            )}
+
+            {/* Close Search Icon - Only visible on mobile when search is open */}
+            {searchOpen && (
+              <button
+                onClick={() => setSearchOpen(false)}
+                className="md:hidden text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2"
+                aria-label="Close search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+
+            {/* Profile Icon - Always visible on mobile when logged in */}
+            {userLoggedIn && (
+              <button onClick={() => router.push('/profile')} className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+            )}
+
+            {/* Cart Icon - Always visible on mobile */}
+            <button onClick={() => router.push('/cart')} className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
+              </svg>
+            </button>
+
+            {/* Hamburger Menu - Always visible */}
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded Search Field - Below Navbar for Mobile */}
+        <AnimatePresence>
+          {searchOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="md:hidden bg-white dark:bg-gray-950/95 dark:backdrop-blur-xl border-b dark:border-white/10 px-4 py-4 shadow-lg overflow-hidden"
+            >
+              <div className="max-w-4xl mx-auto flex gap-3">
+                <div className="flex-1 relative flex items-center border border-gray-300 dark:border-white/15 rounded-lg overflow-hidden bg-white dark:bg-white/5 h-12">
+                  <div className="pl-4 text-gray-500 dark:text-white/40">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search products, Categories"
+                    className="flex-1 h-full px-4 text-base text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-white/40 focus:outline-none bg-transparent"
+                    autoFocus
+                  />
+                </div>
+                <button className="px-6 h-12 rounded-lg font-bold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-white dark:bg-gray-950/95 dark:backdrop-blur-xl border-b dark:border-white/10 px-4 py-4 shadow-lg">
+            <div className="flex flex-col gap-3">
+              {!userLoggedIn && (
+                <button 
+                  onClick={() => {
+                    router.push('/auth/login');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/50 transition-shadow duration-300"
                 >
-                    <span className="inline-block text-sm font-semibold tracking-widest uppercase text-purple-400 mb-3">
-                        Shop By Product
-                    </span>
-                    <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">
-                        The <span className="gradient-text">Marketplace</span>
-                    </h2>
-                    <p className="text-white/50 text-lg max-w-xl mx-auto">
-                        Explore our full catalog of premium smart devices, engineered for the future.
-                    </p>
-                </motion.div>
-
-                {/* Product Grid */}
-                {loading ? (
-                    <div className="flex justify-center py-20">
-                        <svg className="w-8 h-8 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {products.map((product, index) => (
-                            <motion.div
-                                key={product.id}
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, margin: '-80px' }}
-                                transition={{ duration: 0.5, delay: index * 0.1 }}
-                                whileHover={{ y: -8, scale: 1.02 }}
-                                onClick={() => {
-                                    setSelectedProduct(product);
-                                    setActiveImageIndex(0);
-                                }}
-                                className="group rounded-3xl cursor-pointer relative overflow-hidden flex flex-col items-center text-center shadow-xl hover:shadow-2xl transition-all duration-500 h-[400px]"
-                            >
-                                {/* Product Image Cover */}
-                                <div className="absolute inset-0 z-0">
-                                    <img
-                                        src={product.image}
-                                        alt={product.name}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                    />
-                                </div>
-
-                                {/* Card Background Gradient & Overlay */}
-                                <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-10 transition-opacity duration-500`} />
-
-                                {/* Card Inner Border */}
-                                <div className="absolute inset-0 rounded-3xl border border-white/10 group-hover:border-white/30 z-20 transition-colors duration-500 pointer-events-none" />
-
-                                {/* Product Info placed at bottom */}
-                                <div className="relative z-30 mt-auto p-6 w-full flex flex-col items-start text-left">
-                                    <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors duration-300">
-                                        {product.name}
-                                    </h3>
-                                    <p className="text-xl font-semibold text-white/90">{product.price}</p>
-
-                                    {/* View Details Label */}
-                                    <div className="mt-4 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 pointer-events-none text-sm text-blue-400 font-medium">
-                                        View Details →
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                )}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>Sign In</span>
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  router.push('/marketplace');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span>Marketplace</span>
+              </button>
+              <button 
+                onClick={() => {
+                  router.push('/');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span>Home</span>
+              </button>
+              <button 
+                onClick={() => {
+                  router.push('/#categories');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                <span>Categories</span>
+              </button>
+              <button 
+                onClick={() => {
+                  router.push('/#contact');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>Contact</span>
+              </button>
             </div>
+          </div>
+        )}
 
-            {/* Product Modal */}
-            <AnimatePresence>
-                {selectedProduct && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
-                    >
-                        {/* Modal Backdrop (Blurred) */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setSelectedProduct(null)}
-                            className="absolute inset-0 bg-black/50 backdrop-blur-3xl"
-                        />
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-8 overflow-x-auto">
+          <div className="flex items-center justify-center gap-2 min-w-max">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  activeCategory === cat
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                    : 'bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/70 hover:text-black dark:hover:text-white hover:border-gray-300 dark:hover:border-white/30'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
 
-                        {/* Modal Content */}
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 30 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.95, opacity: 0, y: 30 }}
-                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="relative w-full max-w-4xl bg-[#0a0a0f] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/80 max-h-[85vh]"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Close Button */}
-                            <button
-                                onClick={() => setSelectedProduct(null)}
-                                className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white transition-colors"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <svg className="w-8 h-8 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+            {filteredProducts.map((product) => (
+              <motion.div
+                key={product.id}
+                whileHover={{ y: -4 }}
+                onClick={() => {
+                  setSelectedProduct(product);
+                  setActiveImageIndex(0);
+                }}
+                className="cursor-pointer flex flex-col items-center bg-transparent"
+              >
+                <div className="w-full aspect-[4/5] bg-gray-100 dark:bg-[#111116] overflow-hidden relative">
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                </div>
+                <div className="py-4 text-center w-full px-2 bg-gray-900 dark:bg-white transition-colors">
+                  <h3 className="text-[15px] font-bold text-white dark:text-gray-900 mb-1">{product.name}</h3>
+                  <p className="text-[13px] font-bold text-gray-300 dark:text-gray-500 mb-2">{product.category}</p>
+                  <p className="text-[14px] font-bold text-gray-400 dark:text-gray-800">{product.price}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
-                            <div className="flex flex-col sm:flex-row w-full">
-                                {/* Left: Image */}
-                                <div className={`relative flex-shrink-0 h-72 sm:h-auto sm:w-1/2 flex items-center justify-center p-8 bg-[#07070a]`}>
-                                    <div className={`absolute inset-0 bg-gradient-to-br ${selectedProduct.gradient} opacity-20`} />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
-                                    <motion.div
-                                        initial={{ y: 20, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-                                        whileHover={{ scale: 1.05 }}
-                                        className="relative w-full h-full drop-shadow-2xl z-10 flex items-center justify-center transition-transform duration-500"
-                                    >
-                                        <img
-                                            src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image}
-                                            alt={selectedProduct.name}
-                                            className="w-full h-full object-contain pointer-events-none"
-                                        />
-                                    </motion.div>
-                                    {(selectedProduct.image_urls?.length || 0) > 1 && (
-                                        <>
-                                            <button type="button" onClick={() => setActiveImageIndex((prev) => prev === 0 ? (selectedProduct.image_urls!.length - 1) : prev - 1)} className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/50 text-white">‹</button>
-                                            <button type="button" onClick={() => setActiveImageIndex((prev) => prev === (selectedProduct.image_urls!.length - 1) ? 0 : prev + 1)} className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/50 text-white">›</button>
-                                        </>
-                                    )}
-                                </div>
+      <AnimatePresence>
+        {selectedProduct && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedProduct(null)} className="absolute inset-0 bg-black/50 backdrop-blur-3xl" />
 
-                                {/* Right: Product Details on Dark space */}
-                                <div className="p-8 sm:p-10 flex flex-col justify-center text-white sm:w-1/2 relative bg-[#0a0a0f]">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] pointer-events-none" />
-                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
-                                    
-                                    <motion.div
-                                        initial={{ x: 20, opacity: 0 }}
-                                        animate={{ x: 0, opacity: 1 }}
-                                        transition={{ duration: 0.5, delay: 0.2 }}
-                                        className="relative z-10"
-                                    >
-                                        <div className="flex justify-between items-start mb-4">
-                                            <h2 className="text-3xl font-bold leading-tight pr-4 text-white">
-                                                {selectedProduct.name}
-                                            </h2>
-                                            <p className="text-2xl font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-1.5 rounded-xl whitespace-nowrap shadow-inner">
-                                                {selectedProduct.price}
-                                            </p>
-                                        </div>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 30 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-4xl bg-[#0a0a0f] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/80 max-h-[90vh] sm:max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
 
-                                        <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mb-8 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+              <div className="flex flex-col sm:flex-row w-full flex-1 overflow-hidden">
+                <div className="relative flex-shrink-0 h-64 sm:h-auto sm:w-1/2 flex items-center justify-center p-6 sm:p-8 bg-[#07070a] overflow-y-auto">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${selectedProduct.gradient} opacity-20`} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                  <img src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image} alt={selectedProduct.name} className="relative z-10 w-full h-full object-contain" />
+                </div>
 
-                                        <p className="text-white/60 text-lg leading-relaxed mb-10 font-light">
-                                            {selectedProduct.description}
-                                        </p>
-                                        {(selectedProduct.image_urls?.length || 0) > 1 && (
-                                            <div className="flex gap-2 mb-8">
-                                                {selectedProduct.image_urls!.map((image, index) => (
-                                                    <button
-                                                        key={`${image}-${index}`}
-                                                        type="button"
-                                                        onClick={() => setActiveImageIndex(index)}
-                                                        className={`w-14 h-14 rounded-lg overflow-hidden border ${activeImageIndex === index ? 'border-blue-400' : 'border-white/20'}`}
-                                                    >
-                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                        <img src={image} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <div className="flex gap-4 items-center">
-                                            <button
-                                                onClick={async (e) => {
-                                                    const btn = e.currentTarget;
-                                                    const originalHTML = btn.innerHTML;
-                                                    btn.innerHTML = '<span class="text-xl tracking-widest leading-none">....</span>';
-                                                    btn.disabled = true;
-                                                    try {
-                                                        const token = localStorage.getItem('userToken');
-                                                        if (!token) {
-                                                            router.push('/auth/login');
-                                                            return;
-                                                        }
-                                                        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
-                                                        await fetch(`${API_URL}/cart/add`, {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                                            body: JSON.stringify({ product_id: selectedProduct.id, quantity: 1 })
-                                                        });
-                                                        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>';
-                                                        setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500);
-                                                    } catch {
-                                                        btn.innerHTML = 'Error';
-                                                        setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 1500);
-                                                    }
-                                                }}
-                                                aria-label={`Add ${selectedProduct.name} to cart`}
-                                                className="w-16 h-14 rounded-2xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 hover:shadow-lg hover:shadow-blue-500/25 border border-blue-400/20 transition-all active:scale-95 flex items-center justify-center"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
-                                                </svg>
-                                            </button>
-                                            <button className="py-4 px-4 h-14 w-14 flex items-center justify-center rounded-2xl border border-white/10 hover:border-white/30 hover:bg-white/5 text-white/70 hover:text-white transition-all active:scale-95">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </section>
-    );
+                <div className="p-6 sm:p-8 sm:p-10 flex flex-col justify-center text-white sm:w-1/2 relative bg-[#0a0a0f] overflow-y-auto flex-1">
+                  <div className="relative z-10">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
+                      <h2 className="text-2xl sm:text-3xl font-bold leading-tight text-white">{selectedProduct.name}</h2>
+                      <p className="text-xl sm:text-2xl font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-1.5 rounded-xl whitespace-nowrap">{selectedProduct.price}</p>
+                    </div>
+                    <p className="text-white/60 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8">{selectedProduct.description}</p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={async () => {
+                          if (typeof window === 'undefined') return;
+                          
+                          const token = localStorage.getItem('userToken');
+                          if (!token) {
+                            router.push('/auth/login');
+                            return;
+                          }
+                          try {
+                            await fetch(`${API_URL}/cart/add`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ product_id: selectedProduct.id, quantity: 1 }),
+                            });
+                          } catch (error) {
+                            console.error('Error adding to cart:', error);
+                          }
+                        }}
+                        className="px-6 h-12 sm:h-11 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      >
+                        Add To Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
 }

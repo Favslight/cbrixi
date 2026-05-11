@@ -12,6 +12,15 @@ const navLinks = [
   { label: 'Contact', href: '/#contact' },
 ];
 
+const categoryMenu = [
+  { label: 'Smart Watches', href: '/marketplace?category=Smart+Watches' },
+  { label: 'Smart Home', href: '/marketplace?category=Smart+Home' },
+  { label: 'Audio Devices', href: '/marketplace?category=Audio+Devices' },
+  { label: 'Accessories', href: '/marketplace?category=Accessories' },
+  { label: 'Smart Phones', href: '/marketplace?category=Smart+Phones' },
+  { label: 'Vehicles', href: '/marketplace?category=Vehicles' },
+];
+
 const CartIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
@@ -87,7 +96,9 @@ export default function Navbar() {
             {/* Desktop nav links */}
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => (
-                <NavLink key={link.label} href={link.href} label={link.label} />
+                link.label === 'Categories'
+                  ? <CategoriesNavLink key={link.label} href={link.href} label={link.label} />
+                  : <NavLink key={link.label} href={link.href} label={link.label} />
               ))}
             </div>
 
@@ -108,19 +119,22 @@ export default function Navbar() {
                     </div>
                 ) : UserIcon} 
               />
-              {!user && !isAdmin && (
+              
                 <motion.a
-                    href="/auth/login"
+                    href={(user || isAdmin) ? "/marketplace" : "/auth/login"}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.96 }}
                     className="ml-2 px-5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/50 transition-shadow duration-300"
                 >
                     Shop Now
                 </motion.a>
-              )}
             </div>
 
             {/* Mobile hamburger */}
+            <div className="flex md:hidden items-center gap-4">
+              <a href="/cart" className="text-white/80 hover:text-white transition-colors" aria-label="Cart">
+                <CartIcon />
+              </a>
             <button
               onClick={() => setMobileOpen((v) => !v)}
               className="md:hidden text-white/80 hover:text-white transition-colors p-1"
@@ -128,6 +142,7 @@ export default function Navbar() {
             >
               {mobileOpen ? <CloseIcon /> : <MenuIcon />}
             </button>
+            </div>
           </div>
         </div>
       </motion.nav>
@@ -158,7 +173,6 @@ export default function Navbar() {
                 </motion.a>
               ))}
               <div className="flex gap-3 pt-2 border-t border-white/10 mt-2">
-                <a href="/cart" className="text-white/60 hover:text-white transition-colors"><CartIcon /></a>
                 <a href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} className="text-white/60 hover:text-white transition-colors">
                     {isAdmin ? (
                         <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-purple-500/20 text-purple-400 rounded-full">
@@ -175,6 +189,19 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Fixed Mobile Cart Icon */}
+      <div className="md:hidden fixed bottom-6 right-6 z-40">
+        <motion.a
+          href="/cart"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all duration-300"
+          aria-label="Cart"
+        >
+          <CartIcon />
+        </motion.a>
+      </div>
     </>
   );
 }
@@ -196,6 +223,27 @@ function NavLink({ href, label }: NavLinkProps) {
         transition={{ duration: 0.25 }}
       />
     </motion.a>
+  );
+}
+
+function CategoriesNavLink({ href, label }: NavLinkProps) {
+  return (
+    <div className="relative group">
+      <NavLink href={href} label={label} />
+      <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200">
+        <div className="w-60 rounded-xl border border-white/10 bg-gray-950/95 backdrop-blur-xl shadow-2xl shadow-black/40 p-2 grid grid-cols-1 gap-1">
+          {categoryMenu.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              className="px-3 py-2 rounded-lg text-sm text-white/75 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

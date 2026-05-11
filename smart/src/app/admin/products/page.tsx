@@ -128,15 +128,25 @@ export default function AdminProducts() {
                     <td className="px-4 py-4 text-white font-semibold">{product.price}</td>
                     <td className="px-4 py-4 text-white/40">{product.createdAt}</td>
                     <td className="px-4 py-4">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => handleDelete(product.id)}
-                        disabled={deletingId === product.id}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 transition-colors disabled:opacity-40"
-                      >
-                        {deletingId === product.id ? 'â€¦' : 'Delete'}
-                      </motion.button>
-                    </td>
+  <div className="flex items-center justify-end gap-2">
+    <Link href={`/admin/products/${product.id}/edit`}>
+      <motion.div
+        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+        className="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-blue-500/25 bg-blue-500/10 hover:bg-blue-500/20 transition-colors cursor-pointer"
+      >
+        Edit
+      </motion.div>
+    </Link>
+    <motion.button
+      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+      onClick={() => handleDelete(product.id)}
+      disabled={deletingId === product.id}
+      className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 transition-colors disabled:opacity-40"
+    >
+      {deletingId === product.id ? '…' : 'Delete'}
+    </motion.button>
+  </div>
+</td>
                   </motion.tr>
                 ))}
               </AnimatePresence>
@@ -170,3 +180,4 @@ export default function AdminProducts() {
     </div>
   );
 }
+

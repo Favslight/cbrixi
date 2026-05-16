@@ -17,6 +17,7 @@ export default function Marketplace() {
   const [userLoggedIn, setUserLoggedIn] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const router = useRouter();
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -117,6 +118,31 @@ export default function Marketplace() {
       document.body.style.overflow = 'auto';
     };
   }, [selectedProduct]);
+
+  // Touch handlers for image swiping
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartX || !selectedProduct) return;
+    
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    
+    // Swipe threshold of 50px
+    if (Math.abs(diff) > 50) {
+      const totalImages = selectedProduct.image_urls?.length || 1;
+      if (diff > 0 && activeImageIndex > 0) {
+        // Swipe right - go to previous image
+        setActiveImageIndex(activeImageIndex - 1);
+      } else if (diff < 0 && activeImageIndex < totalImages - 1) {
+        // Swipe left - go to next image
+        setActiveImageIndex(activeImageIndex + 1);
+      }
+    }
+    setTouchStartX(null);
+  };
 
   const categories = useMemo(() => {
     // Ensure the requested categories are always available at the top
@@ -392,10 +418,69 @@ export default function Marketplace() {
               </button>
 
               <div className="flex flex-col sm:flex-row w-full flex-1 overflow-hidden">
-                <div className="relative flex-shrink-0 h-64 sm:h-auto sm:w-1/2 flex items-center justify-center p-6 sm:p-8 bg-[#07070a] overflow-y-auto">
+                <div className="relative flex-shrink-0 h-64 sm:h-auto sm:w-1/2 flex items-center justify-center p-6 sm:p-8 bg-[#07070a] overflow-hidden">
                   <div className={`absolute inset-0 bg-gradient-to-br ${selectedProduct.gradient} opacity-20`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
-                  <img src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image} alt={selectedProduct.name} className="relative z-10 w-full h-full object-contain" />
+                  
+                  {/* Main Image with Touch Support */}
+                  <div 
+                    className="relative w-full h-full overflow-hidden"
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                  >
+                    <img 
+                      src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image} 
+                      alt={selectedProduct.name} 
+                      className="relative z-10 w-full h-full object-contain" 
+                      draggable={false}
+                    />
+                    
+                    {/* Image Navigation Arrows */}
+                    {selectedProduct.image_urls && selectedProduct.image_urls.length > 1 && (
+                      <>
+                        {/* Previous Arrow */}
+                        {activeImageIndex > 0 && (
+                          <button
+                            onClick={() => setActiveImageIndex(activeImageIndex - 1)}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white transition-colors z-20"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+                        )}
+                        
+                        {/* Next Arrow */}
+                        {activeImageIndex < (selectedProduct.image_urls.length - 1) && (
+                          <button
+                            onClick={() => setActiveImageIndex(activeImageIndex + 1)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white transition-colors z-20"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7" />
+                            </svg>
+                          </button>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* Image Indicators */}
+                    {selectedProduct.image_urls && selectedProduct.image_urls.length > 1 && (
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                        {selectedProduct.image_urls.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setActiveImageIndex(index)}
+                            className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                              index === activeImageIndex
+                                ? 'bg-white/80 scale-125'
+                                : 'bg-white/30 hover:bg-white/50'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-6 sm:p-8 sm:p-10 flex flex-col justify-center text-white sm:w-1/2 relative bg-[#0a0a0f] overflow-y-auto flex-1">

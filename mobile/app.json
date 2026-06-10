@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Cbrixi Mobile",
+    "slug": "cbrixi-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/smartphone.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#020617"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/smartphone.png",
+        "backgroundColor": "#020617"
+      }
+    },
+    "ios": {
+      "supportsTablet": true
+    }
+  }
+}

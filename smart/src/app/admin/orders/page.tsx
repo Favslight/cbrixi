@@ -8,12 +8,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 interface PendingOrder {
     id: string;
     user_id: string;
+    user_email?: string;
     total_amount: string;
     deposit_amount?: string;
     remaining_balance?: string;
     payment_mode: string;
     status: string;
     external_email?: string;
+    external_email_exists?: boolean;
+    verified_user_id?: string;
+    verified_email?: string;
+    verified_firstname?: string;
+    verified_lastname?: string;
     created_at: string;
 }
 
@@ -95,6 +101,8 @@ export default function AdminOrdersPage() {
     const filtered = orders.filter(o =>
         o.id.toLowerCase().includes(search.toLowerCase()) ||
         (o.external_email && o.external_email.toLowerCase().includes(search.toLowerCase())) ||
+        (o.user_email && o.user_email.toLowerCase().includes(search.toLowerCase())) ||
+        (o.verified_email && o.verified_email.toLowerCase().includes(search.toLowerCase())) ||
         o.user_id.toLowerCase().includes(search.toLowerCase())
     );
 
@@ -182,13 +190,24 @@ export default function AdminOrdersPage() {
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm shrink-0">📦</div>
                                     <div className="min-w-0 flex-1 space-y-2">
                                         <p className="text-white font-mono text-xs break-all">{o.id}</p>
-                                        <p className="text-white/40 text-xs font-mono">User: {o.user_id}</p>
+                                        <p className="text-white/40 text-xs break-all">Buyer: {o.user_email ?? o.user_id}</p>
                                         <p className="text-white font-bold text-lg tabular-nums">{fmt(o.total_amount)}</p>
                                         {o.deposit_amount && <p className="text-white/50 text-xs">Deposit: {fmt(o.deposit_amount)}</p>}
+                                        {o.remaining_balance && <p className="text-white/50 text-xs">Remaining: {fmt(o.remaining_balance)}</p>}
                                         {o.external_email ? (
-                                            <p className="text-blue-300 text-xs break-all">{o.external_email}</p>
+                                            <div className="space-y-1">
+                                                <p className="text-blue-300 text-xs break-all">Submitted: {o.external_email}</p>
+                                                <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${o.external_email_exists ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-red-500/25 bg-red-500/10 text-red-300'}`}>
+                                                    {o.external_email_exists ? 'Email exists' : 'Email not found'}
+                                                </span>
+                                            </div>
                                         ) : (
                                             <p className="text-white/30 text-xs italic">No external email</p>
+                                        )}
+                                        {o.external_email_exists && (
+                                            <p className="text-white/45 text-xs break-all">
+                                                Verified: {[o.verified_firstname, o.verified_lastname].filter(Boolean).join(' ') || o.verified_email}
+                                            </p>
                                         )}
                                         <p className="text-white/50 text-xs">{fmtDate(o.created_at)}</p>
                                     </div>
@@ -212,7 +231,7 @@ export default function AdminOrdersPage() {
                                         <div className="grid grid-cols-2 gap-2">
                                             <motion.button whileTap={{ scale: 0.98 }}
                                                 onClick={() => setConfirmAction({ id: o.id, type: 'APPROVE' })}
-                                                disabled={processingId === o.id || successId === o.id || rejectedId === o.id}
+                                                disabled={processingId === o.id || successId === o.id || rejectedId === o.id || o.external_email_exists === false}
                                                 className="py-2.5 rounded-xl text-xs font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 disabled:opacity-40">
                                                 {successId === o.id ? 'Approved' : 'Approve'}
                                             </motion.button>
@@ -231,12 +250,13 @@ export default function AdminOrdersPage() {
                 </div>
 
                 <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
-                    <table className="w-full text-sm min-w-[900px]">
+                    <table className="w-full text-sm min-w-[1040px]">
                         <thead>
                             <tr className="border-b border-white/8 bg-white/3">
                                 <th className="text-left px-5 py-3.5 text-white/40 font-medium">Order ID</th>
                                 <th className="text-left px-4 py-3.5 text-white/40 font-medium">Values</th>
-                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">External Email (If any)</th>
+                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Cbrilliance Email</th>
+                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Verification</th>
                                 <th className="text-left px-4 py-3.5 text-white/40 font-medium">Date</th>
                                 <th className="px-4 py-3.5 text-right text-white/40 font-medium">Action</th>
                             </tr>
@@ -259,7 +279,7 @@ export default function AdminOrdersPage() {
                                                 </div>
                                                 <div>
                                                     <p className="text-white font-medium font-mono text-xs">{o.id}</p>
-                                                    <p className="text-white/40 text-xs font-mono">User: {o.user_id.slice(0, 8)}…</p>
+                                                    <p className="text-white/40 text-xs break-all">Buyer: {o.user_email ?? `${o.user_id.slice(0, 8)}...`}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -268,16 +288,28 @@ export default function AdminOrdersPage() {
                                         <td className="px-4 py-4">
                                             <p className="text-white font-bold text-base">{fmt(o.total_amount)}</p>
                                             {o.deposit_amount && <p className="text-white/50 text-xs mt-1">Dep: {fmt(o.deposit_amount)}</p>}
+                                            {o.remaining_balance && <p className="text-white/50 text-xs mt-1">Bal: {fmt(o.remaining_balance)}</p>}
                                         </td>
                                         
                                         {/* External Email */}
                                         <td className="px-4 py-4">
                                             {o.external_email ? (
-                                                <span className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-0.5 text-xs">
+                                                <span className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-0.5 text-xs break-all">
                                                     {o.external_email}
                                                 </span>
                                             ) : (
                                                 <span className="text-white/30 text-xs italic">N/A</span>
+                                            )}
+                                        </td>
+
+                                        <td className="px-4 py-4">
+                                            <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${o.external_email_exists ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-red-500/25 bg-red-500/10 text-red-300'}`}>
+                                                {o.external_email_exists ? 'Exists' : 'Not found'}
+                                            </span>
+                                            {o.external_email_exists && (
+                                                <p className="text-white/45 text-xs mt-2 break-all">
+                                                    {[o.verified_firstname, o.verified_lastname].filter(Boolean).join(' ') || o.verified_email}
+                                                </p>
                                             )}
                                         </td>
 
@@ -304,7 +336,7 @@ export default function AdminOrdersPage() {
                                                 <div className="flex items-center justify-end gap-2">
                                                     <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                                                         onClick={() => setConfirmAction({ id: o.id, type: 'APPROVE' })}
-                                                        disabled={processingId === o.id || successId === o.id || rejectedId === o.id}
+                                                        disabled={processingId === o.id || successId === o.id || rejectedId === o.id || o.external_email_exists === false}
                                                         className="px-4 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 transition-colors disabled:opacity-40 flex items-center gap-1.5">
                                                         {successId === o.id ? '✓ Approved' : '✓ Approve'}
                                                     </motion.button>

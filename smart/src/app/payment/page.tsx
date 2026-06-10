@@ -30,14 +30,14 @@ function PaymentContent() {
     const params = useSearchParams();
 
     const orderId = params.get('order_id') || '';
-    const total = parseFloat(params.get('total') || '0');
     const mode = (params.get('mode') || 'FULL') as 'FULL' | 'INSTALLMENT';
-    const deposit = parseFloat(params.get('deposit') || '0');
-    const amountDue = mode === 'INSTALLMENT' ? deposit : total;
+    const displayAmount = parseFloat(params.get('amount') || params.get('total') || '0');
+    const verifyReference = params.get('reference') || params.get('trxref') || '';
 
     const [method, setMethod] = useState<Method>('PAYSTACK');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
     const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
     const [copied, setCopied] = useState<string | null>(null);
 
@@ -46,6 +46,41 @@ function PaymentContent() {
         if (!orderId) router.push('/cart');
     }, [orderId, router]);
 
+    useEffect(() => {
+        if (!verifyReference) return;
+
+        const verifyPayment = async () => {
+            const token = localStorage.getItem('userToken');
+            if (!token) {
+                router.push('/auth/login');
+                return;
+            }
+
+            setProcessing(true);
+            setError('');
+            try {
+                const res = await fetch(`${API_URL}/payment/paystack/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ reference: verifyReference })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setNotice('Payment verified successfully. Your dashboard has the latest order status.');
+                    router.push('/profile');
+                } else {
+                    setError(data.message || 'Payment verification failed.');
+                }
+            } catch {
+                setError('Connection error while verifying payment.');
+            } finally {
+                setProcessing(false);
+            }
+        };
+
+        verifyPayment().catch(() => undefined);
+    }, [router, verifyReference]);
+
     const handlePaystack = async () => {
         const token = localStorage.getItem('userToken');
         setProcessing(true); setError('');
@@ -53,7 +88,7 @@ function PaymentContent() {
             const res = await fetch(`${API_URL}/payment/paystack/initiate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ order_id: orderId, installment_id: null, amount: amountDue })
+                body: JSON.stringify({ order_id: orderId, installment_id: null })
             });
             const data = await res.json();
             if (data.payment_link) {
@@ -72,7 +107,7 @@ function PaymentContent() {
             const res = await fetch(`${API_URL}/payment/manual/initiate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ order_id: orderId, installment_id: null, amount: amountDue })
+                body: JSON.stringify({ order_id: orderId, installment_id: null })
             });
             const data = await res.json();
             if (data.reference) {
@@ -124,6 +159,12 @@ function PaymentContent() {
 
                 {/* Error */}
                 <AnimatePresence>
+                    {notice && (
+                        <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                            className="mb-6 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-sm font-medium">
+                            {notice}
+                        </motion.div>
+                    )}
                     {error && (
                         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                             className="mb-6 p-4 rounded-2xl border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium flex items-center gap-2">
@@ -136,13 +177,11 @@ function PaymentContent() {
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
                     className="glass-card rounded-3xl p-6 border border-white/8 mb-6 flex items-center justify-between shadow-2xl">
                     <div>
-                        <p className="text-white/50 text-sm mb-1">{mode === 'INSTALLMENT' ? 'Deposit Due Today' : 'Total Due'}</p>
+                        <p className="text-white/50 text-sm mb-1">{mode === 'INSTALLMENT' ? 'Installment Amount' : 'Total Due'}</p>
                         <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                            ₦{amountDue.toFixed(2)}
+                            {displayAmount ? `N${displayAmount.toFixed(2)}` : 'Calculated by backend'}
                         </p>
-                        {mode === 'INSTALLMENT' && (
-                            <p className="text-white/40 text-xs mt-1">Remaining balance: ₦{(total - deposit).toFixed(2)}</p>
-                        )}
+                        {mode === 'INSTALLMENT' && <p className="text-white/40 text-xs mt-1">The backend calculates the exact installment payment amount.</p>}
                     </div>
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center">
                         <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

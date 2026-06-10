@@ -9,7 +9,13 @@ interface PendingPayment {
     id: string;
     reference: string;
     amount: string;
+    email?: string;
     payment_method: string;
+    payment_mode?: string;
+    total_amount?: string;
+    deposit_amount?: string;
+    remaining_balance?: string;
+    external_email?: string;
     status: string;
     order_id: string;
     installment_id: string | null;
@@ -92,7 +98,9 @@ export default function AdminPaymentsPage() {
 
     const filtered = payments.filter(p =>
         p.reference.toLowerCase().includes(search.toLowerCase()) ||
-        `${p.firstname} ${p.lastname}`.toLowerCase().includes(search.toLowerCase())
+        `${p.firstname} ${p.lastname}`.toLowerCase().includes(search.toLowerCase()) ||
+        (p.email && p.email.toLowerCase().includes(search.toLowerCase())) ||
+        (p.external_email && p.external_email.toLowerCase().includes(search.toLowerCase()))
     );
 
     const totalPending = payments.reduce((a, p) => a + Number(p.amount), 0);
@@ -181,15 +189,22 @@ export default function AdminPaymentsPage() {
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <p className="text-white font-medium">{p.firstname} {p.lastname}</p>
-                                        <p className="text-white/40 text-xs font-mono mt-0.5 break-all">{p.user_id}</p>
+                                        <p className="text-white/40 text-xs mt-0.5 break-all">{p.email ?? p.user_id}</p>
                                         <p className="text-white font-bold text-lg mt-2 tabular-nums">{fmt(p.amount)}</p>
                                         <code className="inline-block mt-2 text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1 font-mono break-all max-w-full">
                                             {p.reference}
                                         </code>
                                         <p className="text-white/50 text-xs mt-2">{fmtDate(p.created_at)}</p>
-                                        <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-semibold border ${p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
-                                            {p.installment_id ? 'Instalment' : 'Full payment'}
+                                        <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-semibold border ${p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
+                                            {p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'Installment' : 'Full payment'}
                                         </span>
+                                        {p.external_email && <p className="text-blue-300 text-xs mt-2 break-all">Cbrilliance: {p.external_email}</p>}
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                            {p.total_amount && <p className="text-white/45 text-xs">Total: {fmt(p.total_amount)}</p>}
+                                            {p.deposit_amount && <p className="text-white/45 text-xs">Deposit: {fmt(p.deposit_amount)}</p>}
+                                            {p.remaining_balance && <p className="text-white/45 text-xs">Balance: {fmt(p.remaining_balance)}</p>}
+                                            <p className="text-white/45 text-xs">Method: {p.payment_method}</p>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="mt-4 pt-3 border-t border-white/8">
@@ -222,12 +237,13 @@ export default function AdminPaymentsPage() {
                 </div>
 
                 <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
-                    <table className="w-full text-sm min-w-[960px]">
+                    <table className="w-full text-sm min-w-[1120px]">
                         <thead>
                             <tr className="border-b border-white/8 bg-white/3">
                                 <th className="text-left px-5 py-3.5 text-white/40 font-medium">Customer</th>
                                 <th className="text-left px-4 py-3.5 text-white/40 font-medium">Reference</th>
                                 <th className="text-left px-4 py-3.5 text-white/40 font-medium">Amount</th>
+                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Order Context</th>
                                 <th className="text-left px-4 py-3.5 text-white/40 font-medium">Date</th>
                                 <th className="text-left px-4 py-3.5 text-white/40 font-medium">Type</th>
                                 <th className="px-4 py-3.5 text-right text-white/40 font-medium">Action</th>
@@ -251,7 +267,7 @@ export default function AdminPaymentsPage() {
                                                 </div>
                                                 <div>
                                                     <p className="text-white font-medium">{p.firstname} {p.lastname}</p>
-                                                    <p className="text-white/40 text-xs font-mono">{p.user_id.slice(0, 8)}…</p>
+                                                    <p className="text-white/40 text-xs break-all">{p.email ?? `${p.user_id.slice(0, 8)}...`}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -268,13 +284,23 @@ export default function AdminPaymentsPage() {
                                             <span className="text-white font-bold text-base">{fmt(p.amount)}</span>
                                         </td>
 
+                                        <td className="px-4 py-4">
+                                            <div className="space-y-1 text-xs">
+                                                {p.external_email && <p className="text-blue-300 break-all">Cbrilliance: {p.external_email}</p>}
+                                                {p.total_amount && <p className="text-white/50">Total: {fmt(p.total_amount)}</p>}
+                                                {p.deposit_amount && <p className="text-white/50">Deposit: {fmt(p.deposit_amount)}</p>}
+                                                {p.remaining_balance && <p className="text-white/50">Balance: {fmt(p.remaining_balance)}</p>}
+                                                <p className="text-white/40">{p.payment_method}</p>
+                                            </div>
+                                        </td>
+
                                         {/* Date */}
                                         <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(p.created_at)}</td>
 
                                         {/* Type */}
                                         <td className="px-4 py-4">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
-                                                {p.installment_id ? 'Instalment' : 'Full Payment'}
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
+                                                {p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'Installment' : 'Full Payment'}
                                             </span>
                                         </td>
 

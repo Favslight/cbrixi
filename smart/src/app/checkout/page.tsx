@@ -38,6 +38,13 @@ export default function CheckoutPage() {
     const [paymentMode, setPaymentMode] = useState<PaymentMode>('FULL');
     const [externalEmail, setExternalEmail] = useState('');
     const [error, setError] = useState('');
+    const [pendingInstallmentOrder, setPendingInstallmentOrder] = useState<{
+        id: string;
+        external_email?: string;
+        total_amount?: string;
+        deposit_amount?: string;
+        remaining_balance?: string;
+    } | null>(null);
 
     const fetchCart = async () => {
         const token = localStorage.getItem('userToken');
@@ -61,14 +68,21 @@ export default function CheckoutPage() {
 
     const total = cartItems.reduce((acc, i) => acc + parseFloat(i.price) * i.quantity, 0);
     const allInstallmentEnabled = cartItems.every(i => i.installment_enabled);
-    const deposit = total * 0.5;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     const handlePlaceOrder = async () => {
         const token = localStorage.getItem('userToken');
         if (!token) { router.push('/auth/login'); return; }
         
-        if (paymentMode === 'INSTALLMENT' && !externalEmail) {
-            setError('Please provide an email to verify your installment plan.');
+        const trimmedExternalEmail = externalEmail.trim();
+
+        if (paymentMode === 'INSTALLMENT' && !trimmedExternalEmail) {
+            setError('Please provide your Cbrilliance email for installment approval.');
+            return;
+        }
+
+        if (paymentMode === 'INSTALLMENT' && !emailPattern.test(trimmedExternalEmail)) {
+            setError('Please provide a valid Cbrilliance email address.');
             return;
         }
 
@@ -80,13 +94,24 @@ export default function CheckoutPage() {
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ 
                     payment_mode: paymentMode,
-                    externalEmail: paymentMode === 'INSTALLMENT' ? externalEmail : null
+                    externalEmail: paymentMode === 'INSTALLMENT' ? trimmedExternalEmail : null
                 })
             });
             const data = await res.json();
             if (data.success) {
-                // Pass order id to payment page
-                router.push(`/payment?order_id=${data.order.order.id}&total=${total}&mode=${paymentMode}&deposit=${deposit}`);
+                const order = data.order?.order;
+                if (paymentMode === 'INSTALLMENT') {
+                    setPendingInstallmentOrder({
+                        id: order?.id ?? '',
+                        external_email: order?.external_email ?? trimmedExternalEmail,
+                        total_amount: order?.total_amount,
+                        deposit_amount: order?.deposit_amount,
+                        remaining_balance: order?.remaining_balance,
+                    });
+                    return;
+                }
+
+                router.push(`/payment?order_id=${order?.id}&total=${total}&mode=${paymentMode}`);
             } else {
                 setError(data.message || 'Checkout failed. Please try again.');
             }
@@ -134,7 +159,36 @@ export default function CheckoutPage() {
                     )}
                 </AnimatePresence>
 
-                {loading ? (
+                {pendingInstallmentOrder ? (
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="max-w-2xl glass-card rounded-3xl p-8 border border-emerald-500/20 shadow-2xl bg-emerald-500/5"
+                    >
+                        <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center mb-6">
+                            <svg className="w-7 h-7 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold mb-3">Installment request pending admin approval</h2>
+                        <p className="text-white/60 leading-relaxed mb-6">
+                            Your order has been submitted with {pendingInstallmentOrder.external_email}. Payment will be enabled on your dashboard after admin approval.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+                            <SummaryPill label="Total" value={fmtMoney(pendingInstallmentOrder.total_amount ?? total)} />
+                            <SummaryPill label="Required deposit" value={fmtMoney(pendingInstallmentOrder.deposit_amount ?? 0)} />
+                            <SummaryPill label="Remaining" value={fmtMoney(pendingInstallmentOrder.remaining_balance ?? 0)} />
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Link href="/profile" className="inline-flex justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-3 font-bold text-white">
+                                View dashboard
+                            </Link>
+                            <Link href="/marketplace" className="inline-flex justify-center rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/70 hover:text-white">
+                                Continue shopping
+                            </Link>
+                        </div>
+                    </motion.section>
+                ) : loading ? (
                     <div className="flex justify-center py-40"><Spinner /></div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
@@ -209,21 +263,22 @@ export default function CheckoutPage() {
                                             </svg>
                                         }
                                         title="Pay in Instalments"
-                                        description="Split your purchase into manageable monthly payments."
+                                        description="Submit your Cbrilliance email for admin approval before payment."
                                         badge={<span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full text-xs">Flexible</span>}
-                                        amount={`₦${deposit.toFixed(2)} deposit`}
+                                        amount="Approval required"
                                     />
                                 </div>
                                 {paymentMode === 'INSTALLMENT' && (
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6">
-                                        <label className="block text-sm font-medium text-white/70 mb-2">Verify Email for Installment</label>
+                                        <label className="block text-sm font-medium text-white/70 mb-2">Cbrilliance email for approval</label>
                                         <input 
                                             type="email" 
                                             value={externalEmail} 
                                             onChange={(e) => setExternalEmail(e.target.value)} 
-                                            placeholder="Enter your email address to verify" 
+                                            placeholder="user@cbrilliance.io" 
                                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
                                         />
+                                        <p className="text-white/40 text-xs mt-2">No payment details are needed until your request is approved.</p>
                                     </motion.div>
                                 )}
                             </motion.section>
@@ -240,16 +295,15 @@ export default function CheckoutPage() {
                                     <Row label="Shipping" value="Free" valueClass="text-green-400" />
                                     {paymentMode === 'INSTALLMENT' && (
                                         <>
-                                            <Row label="Deposit (50%)" value={`₦${deposit.toFixed(2)}`} />
-                                            <Row label="Remaining balance" value={`₦${(total - deposit).toFixed(2)}`} valueClass="text-white/50" />
+                                            <Row label="Approval status" value="Pending review after checkout" valueClass="text-yellow-300" />
                                         </>
                                     )}
                                 </div>
 
                                 <div className="flex justify-between items-center mb-8 pt-4 border-t border-white/10">
-                                    <span className="text-base font-bold">{paymentMode === 'INSTALLMENT' ? 'Due Today' : 'Total Due'}</span>
+                                    <span className="text-base font-bold">{paymentMode === 'INSTALLMENT' ? 'Payment due now' : 'Total Due'}</span>
                                     <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                                        ₦{paymentMode === 'INSTALLMENT' ? deposit.toFixed(2) : total.toFixed(2)}
+                                        {paymentMode === 'INSTALLMENT' ? 'N0.00' : fmtMoney(total)}
                                     </span>
                                 </div>
 
@@ -282,6 +336,19 @@ function Row({ label, value, valueClass = 'text-white font-medium' }: { label: s
         <div className="flex justify-between text-white/60">
             <span>{label}</span>
             <span className={valueClass}>{value}</span>
+        </div>
+    );
+}
+
+function fmtMoney(value: string | number) {
+    return `N${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function SummaryPill({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+            <p className="text-white/45 text-xs mb-1">{label}</p>
+            <p className="text-white font-bold tabular-nums">{value}</p>
         </div>
     );
 }

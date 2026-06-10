@@ -18,6 +18,8 @@ export default function Marketplace() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
+  const [cartNotice, setCartNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const router = useRouter();
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -157,8 +159,63 @@ export default function Marketplace() {
     return products.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
   }, [products, search]);
 
+  const showCartNotice = (notice: { type: 'success' | 'error'; message: string }) => {
+    setCartNotice(notice);
+    window.setTimeout(() => setCartNotice(null), 3200);
+  };
+
+  const handleAddToCart = async (product: Product) => {
+    if (typeof window === 'undefined' || addingProductId) return;
+
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      router.push('/auth/login');
+      return;
+    }
+
+    setAddingProductId(product.id);
+    setCartNotice(null);
+
+    try {
+      const res = await fetch(`${API_URL}/cart/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Could not add item to cart.');
+      }
+
+      showCartNotice({ type: 'success', message: `${product.name} added to cart.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not add item to cart.';
+      showCartNotice({ type: 'error', message });
+    } finally {
+      setAddingProductId(null);
+    }
+  };
+
   return (
     <section id="marketplace" className="relative pb-20 min-h-screen bg-[#f4fcf9] dark:bg-[#07070a] transition-colors duration-300">
+        <AnimatePresence>
+          {cartNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className={`fixed left-1/2 top-20 z-[120] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl backdrop-blur-xl ${
+                cartNotice.type === 'success'
+                  ? 'border-emerald-500/25 bg-emerald-500/15 text-emerald-100'
+                  : 'border-red-500/25 bg-red-500/15 text-red-100'
+              }`}
+            >
+              {cartNotice.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="bg-white dark:bg-gray-950/80 dark:backdrop-blur-xl px-4 py-3 flex items-center justify-between shadow-sm dark:shadow-none dark:border-b dark:border-white/10 sticky top-0 z-50">
           {/* Logo / Home */}
           <div className="flex items-center">
@@ -492,27 +549,21 @@ export default function Marketplace() {
                     <p className="text-white/60 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8">{selectedProduct.description}</p>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
-                        onClick={async () => {
-                          if (typeof window === 'undefined') return;
-                          
-                          const token = localStorage.getItem('userToken');
-                          if (!token) {
-                            router.push('/auth/login');
-                            return;
-                          }
-                          try {
-                            await fetch(`${API_URL}/cart/add`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                              body: JSON.stringify({ product_id: selectedProduct.id, quantity: 1 }),
-                            });
-                          } catch (error) {
-                            console.error('Error adding to cart:', error);
-                          }
-                        }}
-                        className="px-6 h-12 sm:h-11 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                        onClick={() => handleAddToCart(selectedProduct)}
+                        disabled={addingProductId === selectedProduct.id}
+                        className="px-6 h-12 sm:h-11 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                       >
-                        Add To Cart
+                        {addingProductId === selectedProduct.id ? (
+                          <>
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                            </svg>
+                            Adding...
+                          </>
+                        ) : (
+                          'Add To Cart'
+                        )}
                       </button>
                     </div>
                   </div>

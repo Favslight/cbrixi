@@ -2,6 +2,7 @@ import { apiRequest } from './api';
 
 export type CartItem = {
   id: string;
+  cart_item_id?: string;
   product_id: string;
   quantity: number;
   name: string;
@@ -63,8 +64,20 @@ export async function updateCartItemQuantity(token: string, itemId: string, quan
   return Boolean(data.success ?? true);
 }
 
-export async function deleteCartItem(token: string, itemId: string): Promise<boolean> {
-  const data = await apiRequest<{ success?: boolean }>('/cart/item/' + itemId, {
+export async function deleteCartItem(token: string, itemId: string, productId?: string): Promise<boolean> {
+  try {
+    const data = await apiRequest<{ success?: boolean }>('/cart/item/' + itemId, {
+      method: 'DELETE',
+      token,
+    });
+    return Boolean(data.success ?? true);
+  } catch (error) {
+    if (!productId || productId === itemId) {
+      throw error;
+    }
+  }
+
+  const data = await apiRequest<{ success?: boolean }>('/cart/item/' + productId, {
     method: 'DELETE',
     token,
   });

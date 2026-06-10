@@ -9,6 +9,7 @@ import Navbar from '../../../components/Navbar';
 
 interface CartItem {
     id: string; // cartitem ID
+    cart_item_id?: string;
     product_id: string;
     quantity: number;
     name: string;
@@ -87,24 +88,55 @@ export default function CartPage() {
         setUpdatingId(null);
     };
 
-    const handleRemoveItem = async (itemId: string) => {
+    const readErrorMessage = async (res: Response) => {
+        const data = await res.json().catch(() => ({}));
+        return data.message || `Request failed: ${res.status}`;
+    };
+
+    const deleteCartItemRequest = async (id: string, token: string, API_URL: string) => {
+        return fetch(`${API_URL}/cart/item/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+    };
+
+    const handleRemoveItem = async (item: CartItem) => {
         const token = localStorage.getItem('userToken');
+        if (!token) {
+            router.push('/auth/login');
+            return;
+        }
+
+        const itemId = item.cart_item_id ?? item.id;
         setUpdatingId(itemId);
+        setError('');
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
         try {
-            const res = await fetch(`${API_URL}/cart/item/${itemId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            let res = await deleteCartItemRequest(itemId, token, API_URL);
 
-            if (res.ok) {
-                setCartItems(prev => prev.filter(item => item.id !== itemId));
+            if (!res.ok && item.product_id && item.product_id !== itemId) {
+                res = await deleteCartItemRequest(item.product_id, token, API_URL);
             }
-        } catch {
-            setError('Failed to remove item.');
+
+            if (!res.ok) {
+                setError(await readErrorMessage(res));
+                return;
+            }
+
+            const data = await res.json().catch(() => ({ success: true }));
+            if (data.success === false) {
+                setError(data.message || 'Failed to remove item.');
+                return;
+            }
+
+            setCartItems(prev => prev.filter(cartItem => (cartItem.cart_item_id ?? cartItem.id) !== itemId && cartItem.product_id !== item.product_id));
+            fetchCartItems().catch(() => undefined);
+        } catch (removeError) {
+            setError(removeError instanceof Error ? removeError.message : 'Failed to remove item.');
+        } finally {
+            setUpdatingId(null);
         }
-        setUpdatingId(null);
     };
 
     const calculateTotal = () => {
@@ -236,12 +268,24 @@ export default function CartPage() {
 
                                             {/* Remove Button */}
                                             <button
-                                                disabled={updatingId === item.id}
-                                                onClick={() => handleRemoveItem(item.id)}
+                                                disabled={updatingId === (item.cart_item_id ?? item.id)}
+                                                onClick={() => handleRemoveItem(item)}
                                                 className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors py-1 flex items-center gap-1.5 opacity-60 group-hover:opacity-100"
                                             >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                Remove
+                                                {updatingId === (item.cart_item_id ?? item.id) ? (
+                                                    <>
+                                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                                        </svg>
+                                                        Removing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        Remove
+                                                    </>
+                                                )}
                                             </button>
                                         </div>
                                     </motion.div>

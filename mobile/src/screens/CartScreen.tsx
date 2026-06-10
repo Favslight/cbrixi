@@ -169,17 +169,28 @@ export function CartScreen({ navigation, route }: Props) {
     }
   };
 
-  const removeItem = async (itemId: string) => {
+  const removeItem = async (item: CartItem) => {
     const token = await ensureToken();
     if (!token) return;
 
+    const itemId = item.cart_item_id ?? item.id;
     setUpdatingId(itemId);
     setError('');
     try {
-      await deleteCartItem(token, itemId);
-      setCartItems((current) => current.filter((item) => item.id !== itemId));
-    } catch {
-      setError('Failed to remove item.');
+      await deleteCartItem(token, itemId, item.product_id);
+      setCartItems((current) =>
+        current.filter(
+          (cartItem) =>
+            (cartItem.cart_item_id ?? cartItem.id) !== itemId && cartItem.product_id !== item.product_id,
+        ),
+      );
+      await loadCart(true);
+    } catch (removeError) {
+      setError(
+        removeError && typeof removeError === 'object' && 'message' in removeError
+          ? String((removeError as { message?: string }).message)
+          : 'Failed to remove item.',
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -296,8 +307,16 @@ export function CartScreen({ navigation, route }: Props) {
                       <Text style={styles.itemName} numberOfLines={2}>
                         {item.name}
                       </Text>
-                      <Pressable onPress={() => removeItem(item.id)} style={styles.removeButton}>
-                        <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                      <Pressable
+                        disabled={updatingId === (item.cart_item_id ?? item.id)}
+                        onPress={() => removeItem(item)}
+                        style={[styles.removeButton, updatingId === (item.cart_item_id ?? item.id) && styles.disabled]}
+                      >
+                        {updatingId === (item.cart_item_id ?? item.id) ? (
+                          <Text style={styles.removeLoadingText}>...</Text>
+                        ) : (
+                          <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                        )}
                       </Pressable>
                     </View>
 
@@ -562,6 +581,11 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     padding: 2,
+  },
+  removeLoadingText: {
+    color: '#FCA5A5',
+    fontSize: 12,
+    fontWeight: '700',
   },
   itemPrice: {
     color: colors.textPrimary,

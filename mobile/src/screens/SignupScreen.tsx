@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
@@ -41,6 +42,7 @@ export function SignupScreen({ navigation }: Props) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const passwordStrength = useMemo(() => {
     const password = formData.password;
@@ -153,8 +155,22 @@ export function SignupScreen({ navigation }: Props) {
                 onChangeText={(value) => updateField('password', value)}
                 autoCapitalize="none"
                 autoCorrect={false}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 placeholder="Create a strong password"
+                rightElement={
+                  <Pressable
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    accessibilityRole="button"
+                    hitSlop={10}
+                    onPress={() => setShowPassword((current) => !current)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={21}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                }
               />
 
               {formData.password ? (

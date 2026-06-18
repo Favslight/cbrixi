@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
@@ -30,6 +31,7 @@ export function LoginScreen({ navigation }: Props) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const updateField = (name: 'email' | 'password', value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -104,10 +106,24 @@ export function LoginScreen({ navigation }: Props) {
                 label="Password"
                 value={formData.password}
                 onChangeText={(value) => updateField('password', value)}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
                 placeholder="Enter your password"
+                rightElement={
+                  <Pressable
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    accessibilityRole="button"
+                    hitSlop={10}
+                    onPress={() => setShowPassword((current) => !current)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={21}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                }
               />
 
               <View style={styles.rememberRow}>

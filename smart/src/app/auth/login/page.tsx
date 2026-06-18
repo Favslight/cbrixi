@@ -10,6 +10,7 @@ type Tab = "user" | "admin";
 export default function Login() {
   const router = useRouter();
   const [formData, setFormData] = useState({ email: "", password: "", rememberMe: false });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -141,14 +142,36 @@ export default function Login() {
 
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-white/80 mb-2">Password</label>
-          <input
-            type="password" id="password" name="password"
-            value={formData.password}
-            onChange={handleInputChange}
-            placeholder="Enter your password"
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all"
-            required
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"} id="password" name="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              placeholder="Enter your password"
+              className="w-full px-4 py-3 pr-12 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+              className="absolute inset-y-0 right-3 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+            >
+              {showPassword ? (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 3l18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M10.73 5.08A10.88 10.88 0 0112 5c5.52 0 9 5.5 9 7a7.5 7.5 0 01-2.06 2.8M6.61 6.61C4.39 8.02 3 10.69 3 12c0 1.5 3.48 7 9 7 1.5 0 2.84-.41 4-1.03" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M9.88 9.88A3 3 0 0012 15a2.98 2.98 0 002.12-.88M14.12 9.88A2.98 2.98 0 0012 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 12c0-1.5 3.48-7 9-7s9 5.5 9 7-3.48 7-9 7-9-5.5-9-7z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" strokeWidth="1.8" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-2">

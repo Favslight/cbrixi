@@ -8,6 +8,7 @@ import CbrixiLogo from './CbrixiLogo';
 const navLinks = [
   { label: 'Home', href: '/' },
   { label: 'MarketPlace', href: '/marketplace' },
+  { label: 'Orders', href: '/orders' },
   { label: 'Categories', href: '/#categories' },
   { label: 'Contact', href: '/#contact' },
 ];

@@ -5,338 +5,547 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
-interface PendingPayment {
-    id: string;
-    reference: string;
-    amount: string;
-    email?: string;
-    payment_method: string;
-    payment_mode?: string;
-    total_amount?: string;
-    deposit_amount?: string;
-    remaining_balance?: string;
-    external_email?: string;
-    status: string;
-    order_id: string;
-    installment_id: string | null;
-    created_at: string;
-    firstname: string;
-    lastname: string;
-    user_id: string;
+type PaymentTab = 'pending' | 'approved' | 'rejected';
+
+interface AdminPayment {
+  id: string;
+  reference: string;
+  amount: string | number;
+  email?: string;
+  payment_method: string;
+  payment_mode?: string;
+  payment_type?: string;
+  payment_label?: string;
+  total_amount?: string | number;
+  deposit_amount?: string | number;
+  paid_amount?: string | number;
+  remaining_balance?: string | number;
+  external_email?: string;
+  status: string;
+  order_status?: string;
+  order_id: string;
+  installment_id: string | null;
+  installment_number?: number | null;
+  installment_due_date?: string | null;
+  created_at: string;
+  firstname: string;
+  lastname: string;
+  user_id: string;
 }
 
+const tabs: Array<{ key: PaymentTab; label: string; description: string }> = [
+  { key: 'pending', label: 'Pending payments', description: 'Bank transfers awaiting approval or rejection.' },
+  { key: 'approved', label: 'Approved payments', description: 'Payment history already approved by admin.' },
+  { key: 'rejected', label: 'Rejected payments', description: 'Payment attempts rejected by admin.' },
+];
+
 const Spinner = ({ sm }: { sm?: boolean }) => (
-    <svg className={`animate-spin text-blue-500 ${sm ? 'w-4 h-4' : 'w-8 h-8'}`} fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-    </svg>
+  <svg className={`animate-spin text-blue-500 ${sm ? 'w-4 h-4' : 'w-8 h-8'}`} fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+  </svg>
 );
 
-const fmt = (n: string | number) =>
-    `₦${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+const fmt = (n: string | number | undefined) =>
+  `N${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const fmtDate = (d: string) =>
-    new Date(d).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-    });
+const fmtDate = (d?: string | null) =>
+  d
+    ? new Date(d).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'Not set';
+
+function getPaymentTitle(payment: AdminPayment) {
+  if (payment.payment_label) return payment.payment_label;
+  if (payment.payment_type === 'INSTALLMENT_DEPOSIT') return 'First deposit';
+  if (payment.payment_type === 'INSTALLMENT_PAYMENT') {
+    return payment.installment_number ? `Installment ${payment.installment_number}` : 'Installment payment';
+  }
+  return payment.payment_mode === 'INSTALLMENT' || payment.installment_id ? 'Installment' : 'Full payment';
+}
 
 export default function AdminPaymentsPage() {
-    const [payments, setPayments] = useState<PendingPayment[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [approvingId, setApprovingId] = useState<string | null>(null);
-    const [successId, setSuccessId] = useState<string | null>(null);
-    const [error, setError] = useState('');
-    const [search, setSearch] = useState('');
-    const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<PaymentTab>('pending');
+  const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [successId, setSuccessId] = useState<string | null>(null);
+  const [rejectedId, setRejectedId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'APPROVE' | 'REJECT' } | null>(null);
 
-    const fetchPayments = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const token = localStorage.getItem('adminToken') ?? '';
-            const res = await fetch(`${API_URL}/admin/payments/pending`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                setError(errData.message || `Request failed: ${res.status}`);
-                setLoading(false);
-                return;
-            }
-            const data = await res.json();
-            setPayments(Array.isArray(data) ? data : data.payments ?? data.data ?? []);
-        } catch { setError('Connection error. Check your network or server.'); }
-        setLoading(false);
-    }, []);
+  const fetchPayments = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken') ?? '';
+      const res = await fetch(`${API_URL}/admin/payments/${activeTab}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || `Request failed: ${res.status}`);
+        setPayments([]);
+        return;
+      }
+      setPayments(Array.isArray(data) ? data : data.payments ?? data.data ?? []);
+    } catch {
+      setError('Connection error. Check your network or server.');
+      setPayments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
 
-    useEffect(() => { fetchPayments(); }, [fetchPayments]);
+  useEffect(() => {
+    fetchPayments().catch(() => undefined);
+  }, [fetchPayments]);
 
-    const handleApprove = async (id: string) => {
-        setConfirmId(null);
-        setApprovingId(id);
-        setError('');
-        try {
-            const token = localStorage.getItem('adminToken') ?? '';
-            const res = await fetch(`${API_URL}/admin/payments/${id}/approve`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.success) {
-                setSuccessId(id);
-                setTimeout(() => {
-                    setPayments(prev => prev.filter(p => p.id !== id));
-                    setSuccessId(null);
-                }, 1600);
-            } else {
-                setError(data.message || 'Failed to approve payment.');
-            }
-        } catch { setError('Connection error.'); }
-        setApprovingId(null);
-    };
+  const handleAction = async (id: string, actionUrl: 'approve' | 'reject') => {
+    setConfirmAction(null);
+    setProcessingId(id);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken') ?? '';
+      const res = await fetch(`${API_URL}/admin/payments/${id}/${actionUrl}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success !== false) {
+        if (actionUrl === 'approve') setSuccessId(id);
+        else setRejectedId(id);
 
-    const filtered = payments.filter(p =>
-        p.reference.toLowerCase().includes(search.toLowerCase()) ||
-        `${p.firstname} ${p.lastname}`.toLowerCase().includes(search.toLowerCase()) ||
-        (p.email && p.email.toLowerCase().includes(search.toLowerCase())) ||
-        (p.external_email && p.external_email.toLowerCase().includes(search.toLowerCase()))
-    );
+        setTimeout(() => {
+          setPayments((prev) => prev.filter((payment) => payment.id !== id));
+          setSuccessId(null);
+          setRejectedId(null);
+        }, 1000);
+      } else {
+        setError(data.message || `Failed to ${actionUrl} payment.`);
+      }
+    } catch {
+      setError('Connection error.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
-    const totalPending = payments.reduce((a, p) => a + Number(p.amount), 0);
-
+  const filtered = payments.filter((payment) => {
+    const needle = search.toLowerCase();
     return (
-        <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
-            {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 sm:mb-8">
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 mb-1">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white">Pending Payments</h1>
-                    {payments.length > 0 && (
-                        <span className="w-fit px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 animate-pulse">
-                            {payments.length} pending
-                        </span>
-                    )}
-                </div>
-                <p className="text-white/40 text-sm leading-relaxed">
-                    Bank transfer payments awaiting your approval · <span className="text-white/60 tabular-nums">{fmt(totalPending)}</span> total pending
-                </p>
-            </motion.div>
-
-            {/* Stats row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                {[
-                    { label: 'Pending Approvals', value: payments.length, icon: '⏳', color: 'from-yellow-500/20 to-yellow-900/10 border-yellow-500/20' },
-                    { label: 'Total Pending Amount', value: fmt(totalPending), icon: '💸', color: 'from-orange-500/20 to-orange-900/10 border-orange-500/20' },
-                    { label: 'Awaiting Customers', value: new Set(payments.map(p => p.user_id)).size, icon: '👤', color: 'from-purple-500/20 to-purple-900/10 border-purple-500/20' },
-                ].map((s, i) => (
-                    <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.08 }} whileHover={{ y: -3 }}
-                        className={`rounded-2xl p-5 border bg-gradient-to-br ${s.color}`}>
-                        <div className="text-2xl mb-2">{s.icon}</div>
-                        <p className="text-xl font-bold text-white">{s.value}</p>
-                        <p className="text-white/50 text-xs mt-0.5">{s.label}</p>
-                    </motion.div>
-                ))}
-            </div>
-
-            {/* Search */}
-            <div className="relative mb-6 max-w-sm">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Search by reference or name…"
-                    className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
-                />
-            </div>
-
-            {/* Error */}
-            <AnimatePresence>
-                {error && (
-                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                        className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
-                        ⚠️ {error}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Table */}
-            {loading ? (
-                <div className="flex justify-center py-16"><Spinner /></div>
-            ) : filtered.length === 0 ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                    className="flex flex-col items-center justify-center py-24 rounded-2xl border border-white/8 bg-white/2">
-                    <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-3xl mb-4">✅</div>
-                    <p className="text-white font-semibold text-lg mb-1">All clear!</p>
-                    <p className="text-white/40 text-sm">No pending bank transfer payments.</p>
-                </motion.div>
-            ) : (
-                <>
-                <div className="space-y-3 lg:hidden">
-                    <AnimatePresence>
-                        {filtered.map((p, i) => (
-                            <motion.div
-                                key={p.id}
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: successId === p.id ? 0 : 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                transition={{ delay: i * 0.03 }}
-                                className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
-                            >
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold shrink-0">
-                                        {p.firstname?.[0]?.toUpperCase() ?? '?'}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-white font-medium">{p.firstname} {p.lastname}</p>
-                                        <p className="text-white/40 text-xs mt-0.5 break-all">{p.email ?? p.user_id}</p>
-                                        <p className="text-white font-bold text-lg mt-2 tabular-nums">{fmt(p.amount)}</p>
-                                        <code className="inline-block mt-2 text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1 font-mono break-all max-w-full">
-                                            {p.reference}
-                                        </code>
-                                        <p className="text-white/50 text-xs mt-2">{fmtDate(p.created_at)}</p>
-                                        <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-semibold border ${p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
-                                            {p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'Installment' : 'Full payment'}
-                                        </span>
-                                        {p.external_email && <p className="text-blue-300 text-xs mt-2 break-all">Cbrilliance: {p.external_email}</p>}
-                                        <div className="grid grid-cols-2 gap-2 mt-2">
-                                            {p.total_amount && <p className="text-white/45 text-xs">Total: {fmt(p.total_amount)}</p>}
-                                            {p.deposit_amount && <p className="text-white/45 text-xs">Deposit: {fmt(p.deposit_amount)}</p>}
-                                            {p.remaining_balance && <p className="text-white/45 text-xs">Balance: {fmt(p.remaining_balance)}</p>}
-                                            <p className="text-white/45 text-xs">Method: {p.payment_method}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-4 pt-3 border-t border-white/8">
-                                    {confirmId === p.id ? (
-                                        <div className="flex flex-col gap-2">
-                                            <motion.button whileTap={{ scale: 0.98 }}
-                                                onClick={() => handleApprove(p.id)}
-                                                disabled={approvingId === p.id}
-                                                className="w-full py-2.5 rounded-xl text-sm font-bold bg-green-500 text-white flex items-center justify-center gap-2 disabled:opacity-50">
-                                                {approvingId === p.id ? <><Spinner sm /> Approving…</> : 'Confirm'}
-                                            </motion.button>
-                                            <motion.button whileTap={{ scale: 0.98 }}
-                                                onClick={() => setConfirmId(null)}
-                                                className="w-full py-2 rounded-xl text-sm text-white/60 border border-white/10">
-                                                Cancel
-                                            </motion.button>
-                                        </div>
-                                    ) : (
-                                        <motion.button whileTap={{ scale: 0.98 }}
-                                            onClick={() => setConfirmId(p.id)}
-                                            disabled={approvingId === p.id || successId === p.id}
-                                            className="w-full py-2.5 rounded-xl text-sm font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 disabled:opacity-40">
-                                            {successId === p.id ? 'Approved' : 'Approve payment'}
-                                        </motion.button>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                </div>
-
-                <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
-                    <table className="w-full text-sm min-w-[1120px]">
-                        <thead>
-                            <tr className="border-b border-white/8 bg-white/3">
-                                <th className="text-left px-5 py-3.5 text-white/40 font-medium">Customer</th>
-                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Reference</th>
-                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Amount</th>
-                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Order Context</th>
-                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Date</th>
-                                <th className="text-left px-4 py-3.5 text-white/40 font-medium">Type</th>
-                                <th className="px-4 py-3.5 text-right text-white/40 font-medium">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <AnimatePresence>
-                                {filtered.map((p, i) => (
-                                    <motion.tr key={p.id}
-                                        initial={{ opacity: 0, x: -12 }}
-                                        animate={{ opacity: successId === p.id ? 0 : 1, x: 0, backgroundColor: successId === p.id ? 'rgba(34,197,94,0.08)' : '' }}
-                                        exit={{ opacity: 0, x: 12 }}
-                                        transition={{ delay: i * 0.04 }}
-                                        className="border-b border-white/5 hover:bg-white/3 transition-colors">
-
-                                        {/* Customer */}
-                                        <td className="px-5 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                                    {p.firstname?.[0]?.toUpperCase() ?? '?'}
-                                                </div>
-                                                <div>
-                                                    <p className="text-white font-medium">{p.firstname} {p.lastname}</p>
-                                                    <p className="text-white/40 text-xs break-all">{p.email ?? `${p.user_id.slice(0, 8)}...`}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-
-                                        {/* Reference */}
-                                        <td className="px-4 py-4">
-                                            <code className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-0.5 text-xs font-mono">
-                                                {p.reference}
-                                            </code>
-                                        </td>
-
-                                        {/* Amount */}
-                                        <td className="px-4 py-4">
-                                            <span className="text-white font-bold text-base">{fmt(p.amount)}</span>
-                                        </td>
-
-                                        <td className="px-4 py-4">
-                                            <div className="space-y-1 text-xs">
-                                                {p.external_email && <p className="text-blue-300 break-all">Cbrilliance: {p.external_email}</p>}
-                                                {p.total_amount && <p className="text-white/50">Total: {fmt(p.total_amount)}</p>}
-                                                {p.deposit_amount && <p className="text-white/50">Deposit: {fmt(p.deposit_amount)}</p>}
-                                                {p.remaining_balance && <p className="text-white/50">Balance: {fmt(p.remaining_balance)}</p>}
-                                                <p className="text-white/40">{p.payment_method}</p>
-                                            </div>
-                                        </td>
-
-                                        {/* Date */}
-                                        <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(p.created_at)}</td>
-
-                                        {/* Type */}
-                                        <td className="px-4 py-4">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
-                                                {p.payment_mode === 'INSTALLMENT' || p.installment_id ? 'Installment' : 'Full Payment'}
-                                            </span>
-                                        </td>
-
-                                        {/* Action */}
-                                        <td className="px-4 py-4 text-right">
-                                            {confirmId === p.id ? (
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                                                        onClick={() => handleApprove(p.id)}
-                                                        disabled={approvingId === p.id}
-                                                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-500 text-white hover:bg-green-400 transition-colors flex items-center gap-1.5 disabled:opacity-50">
-                                                        {approvingId === p.id ? <><Spinner sm /> Approving…</> : '✓ Confirm'}
-                                                    </motion.button>
-                                                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                                                        onClick={() => setConfirmId(null)}
-                                                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-white/50 border border-white/10 hover:border-white/20 hover:text-white transition-colors">
-                                                        Cancel
-                                                    </motion.button>
-                                                </div>
-                                            ) : (
-                                                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                                                    onClick={() => setConfirmId(p.id)}
-                                                    disabled={approvingId === p.id || successId === p.id}
-                                                    className="px-4 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 transition-colors disabled:opacity-40 flex items-center gap-1.5">
-                                                    {successId === p.id ? '✓ Approved' : '✓ Approve'}
-                                                </motion.button>
-                                            )}
-                                        </td>
-                                    </motion.tr>
-                                ))}
-                            </AnimatePresence>
-                        </tbody>
-                    </table>
-                </div>
-                </>
-            )}
-        </div>
+      payment.reference?.toLowerCase().includes(needle) ||
+      `${payment.firstname ?? ''} ${payment.lastname ?? ''}`.toLowerCase().includes(needle) ||
+      payment.order_id?.toLowerCase().includes(needle) ||
+      payment.email?.toLowerCase().includes(needle) ||
+      payment.external_email?.toLowerCase().includes(needle)
     );
+  });
+
+  const activeTabMeta = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
+  const totalAmount = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+  const isPending = activeTab === 'pending';
+
+  return (
+    <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
+      <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 sm:mb-8">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 mb-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">{activeTabMeta.label}</h1>
+          {payments.length > 0 && (
+            <span className="w-fit px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+              {payments.length} records
+            </span>
+          )}
+        </div>
+        <p className="text-white/40 text-sm leading-relaxed">
+          {activeTabMeta.description} <span className="text-white/60 tabular-nums">{fmt(totalAmount)}</span> total.
+        </p>
+      </motion.div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => {
+              setActiveTab(tab.key);
+              setSearch('');
+              setConfirmAction(null);
+            }}
+            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+              activeTab === tab.key
+                ? 'border-blue-500/40 bg-blue-500/15 text-blue-200'
+                : 'border-white/10 bg-white/5 text-white/55 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {tab.label.replace(' payments', '')}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <StatCard label={`${activeTabMeta.label} count`} value={payments.length} />
+        <StatCard label="Total amount" value={fmt(totalAmount)} />
+        <StatCard label="Customers" value={new Set(payments.map((payment) => payment.user_id)).size} />
+      </div>
+
+      <div className="relative mb-6 max-w-sm">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by reference, order, name, or email..."
+          className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+        />
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {loading ? (
+        <div className="flex justify-center py-16"><Spinner /></div>
+      ) : filtered.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center justify-center py-24 rounded-2xl border border-white/8 bg-white/2"
+        >
+          <p className="text-white font-semibold text-lg mb-1">No records found.</p>
+          <p className="text-white/40 text-sm">{isPending ? 'No pending bank transfer payments.' : `No ${activeTab} payment history yet.`}</p>
+        </motion.div>
+      ) : (
+        <>
+          <div className="space-y-3 lg:hidden">
+            <AnimatePresence>
+              {filtered.map((payment, index) => (
+                <PaymentCard
+                  key={payment.id}
+                  payment={payment}
+                  index={index}
+                  isPending={isPending}
+                  processingId={processingId}
+                  successId={successId}
+                  rejectedId={rejectedId}
+                  confirmAction={confirmAction}
+                  setConfirmAction={setConfirmAction}
+                  onAction={handleAction}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+
+          <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
+            <table className="w-full text-sm min-w-[1180px]">
+              <thead>
+                <tr className="border-b border-white/8 bg-white/3">
+                  <th className="text-left px-5 py-3.5 text-white/40 font-medium">Customer</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Reference</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Amount</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Payment</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Order Context</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Date</th>
+                  <th className="px-4 py-3.5 text-right text-white/40 font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {filtered.map((payment, index) => (
+                    <PaymentRow
+                      key={payment.id}
+                      payment={payment}
+                      index={index}
+                      isPending={isPending}
+                      processingId={processingId}
+                      successId={successId}
+                      rejectedId={rejectedId}
+                      confirmAction={confirmAction}
+                      setConfirmAction={setConfirmAction}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl p-5 border border-white/8 bg-white/[0.03]">
+      <p className="text-xl font-bold text-white tabular-nums">{value}</p>
+      <p className="text-white/50 text-xs mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+function PaymentCard({
+  payment,
+  index,
+  isPending,
+  processingId,
+  successId,
+  rejectedId,
+  confirmAction,
+  setConfirmAction,
+  onAction,
+}: {
+  payment: AdminPayment;
+  index: number;
+  isPending: boolean;
+  processingId: string | null;
+  successId: string | null;
+  rejectedId: string | null;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: successId === payment.id || rejectedId === payment.id ? 0 : 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ delay: index * 0.03 }}
+      className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
+    >
+      <PaymentSummary payment={payment} />
+      {isPending && (
+        <PaymentActions
+          payment={payment}
+          processingId={processingId}
+          successId={successId}
+          rejectedId={rejectedId}
+          confirmAction={confirmAction}
+          setConfirmAction={setConfirmAction}
+          onAction={onAction}
+          mobile
+        />
+      )}
+    </motion.div>
+  );
+}
+
+function PaymentRow({
+  payment,
+  index,
+  isPending,
+  processingId,
+  successId,
+  rejectedId,
+  confirmAction,
+  setConfirmAction,
+  onAction,
+}: {
+  payment: AdminPayment;
+  index: number;
+  isPending: boolean;
+  processingId: string | null;
+  successId: string | null;
+  rejectedId: string | null;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+}) {
+  return (
+    <motion.tr
+      initial={{ opacity: 0, x: -12 }}
+      animate={{
+        opacity: successId === payment.id || rejectedId === payment.id ? 0 : 1,
+        x: 0,
+        backgroundColor:
+          successId === payment.id ? 'rgba(34,197,94,0.08)' : rejectedId === payment.id ? 'rgba(239,68,68,0.08)' : '',
+      }}
+      exit={{ opacity: 0, x: 12 }}
+      transition={{ delay: index * 0.04 }}
+      className="border-b border-white/5 hover:bg-white/3 transition-colors"
+    >
+      <td className="px-5 py-4">
+        <div>
+          <p className="text-white font-medium">{payment.firstname} {payment.lastname}</p>
+          <p className="text-white/40 text-xs break-all">{payment.email ?? payment.user_id}</p>
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        <code className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-0.5 text-xs font-mono">
+          {payment.reference}
+        </code>
+      </td>
+      <td className="px-4 py-4">
+        <span className="text-white font-bold text-base">{fmt(payment.amount)}</span>
+      </td>
+      <td className="px-4 py-4">
+        <PaymentTypeBadge payment={payment} />
+        {payment.installment_due_date && <p className="text-white/45 text-xs mt-2">Due {fmtDate(payment.installment_due_date)}</p>}
+      </td>
+      <td className="px-4 py-4">
+        <OrderContext payment={payment} />
+      </td>
+      <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(payment.created_at)}</td>
+      <td className="px-4 py-4 text-right">
+        {isPending ? (
+          <PaymentActions
+            payment={payment}
+            processingId={processingId}
+            successId={successId}
+            rejectedId={rejectedId}
+            confirmAction={confirmAction}
+            setConfirmAction={setConfirmAction}
+            onAction={onAction}
+          />
+        ) : (
+          <StatusBadge status={payment.status} />
+        )}
+      </td>
+    </motion.tr>
+  );
+}
+
+function PaymentSummary({ payment }: { payment: AdminPayment }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-white font-medium">{payment.firstname} {payment.lastname}</p>
+          <p className="text-white/40 text-xs mt-0.5 break-all">{payment.email ?? payment.user_id}</p>
+        </div>
+        <StatusBadge status={payment.status} />
+      </div>
+      <p className="text-white font-bold text-lg tabular-nums">{fmt(payment.amount)}</p>
+      <code className="inline-block text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1 font-mono break-all max-w-full">
+        {payment.reference}
+      </code>
+      <PaymentTypeBadge payment={payment} />
+      <OrderContext payment={payment} />
+      <p className="text-white/50 text-xs">{fmtDate(payment.created_at)}</p>
+    </div>
+  );
+}
+
+function PaymentActions({
+  payment,
+  processingId,
+  successId,
+  rejectedId,
+  confirmAction,
+  setConfirmAction,
+  onAction,
+  mobile,
+}: {
+  payment: AdminPayment;
+  processingId: string | null;
+  successId: string | null;
+  rejectedId: string | null;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  mobile?: boolean;
+}) {
+  const currentConfirm = confirmAction?.id === payment.id ? confirmAction.type : null;
+  const buttonBase = mobile ? 'w-full py-2.5 rounded-xl text-sm font-bold' : 'px-3 py-1.5 rounded-lg text-xs font-bold';
+
+  if (currentConfirm) {
+    return (
+      <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'items-center justify-end'} gap-2`}>
+        <button
+          type="button"
+          onClick={() => onAction(payment.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject')}
+          disabled={processingId === payment.id}
+          className={`${buttonBase} text-white flex items-center justify-center gap-2 disabled:opacity-50 ${currentConfirm === 'APPROVE' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'}`}
+        >
+          {processingId === payment.id ? <><Spinner sm /> Processing...</> : `Confirm ${currentConfirm === 'APPROVE' ? 'approval' : 'rejection'}`}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmAction(null)}
+          className={`${mobile ? 'w-full py-2 rounded-xl text-sm' : 'px-3 py-1.5 rounded-lg text-xs'} text-white/60 border border-white/10 hover:text-white`}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex ${mobile ? 'grid grid-cols-2 mt-4 pt-3 border-t border-white/8' : 'items-center justify-end'} gap-2`}>
+      <button
+        type="button"
+        onClick={() => setConfirmAction({ id: payment.id, type: 'APPROVE' })}
+        disabled={processingId === payment.id || successId === payment.id || rejectedId === payment.id}
+        className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 disabled:opacity-40`}
+      >
+        {successId === payment.id ? 'Approved' : 'Approve'}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirmAction({ id: payment.id, type: 'REJECT' })}
+        disabled={processingId === payment.id || successId === payment.id || rejectedId === payment.id}
+        className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 disabled:opacity-40`}
+      >
+        {rejectedId === payment.id ? 'Rejected' : 'Reject'}
+      </button>
+    </div>
+  );
+}
+
+function PaymentTypeBadge({ payment }: { payment: AdminPayment }) {
+  return (
+    <div className="space-y-1">
+      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${payment.payment_mode === 'INSTALLMENT' || payment.installment_id || payment.payment_type?.includes('INSTALLMENT') ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>
+        {getPaymentTitle(payment)}
+      </span>
+      {payment.payment_type && <p className="text-white/35 text-xs">{payment.payment_type}</p>}
+    </div>
+  );
+}
+
+function OrderContext({ payment }: { payment: AdminPayment }) {
+  return (
+    <div className="space-y-1 text-xs">
+      <p className="text-white/45 break-all">Order: {payment.order_id}</p>
+      {payment.external_email && <p className="text-blue-300 break-all">Cbrilliance: {payment.external_email}</p>}
+      {payment.total_amount !== undefined && <p className="text-white/50">Total: {fmt(payment.total_amount)}</p>}
+      {payment.deposit_amount !== undefined && <p className="text-white/50">Deposit: {fmt(payment.deposit_amount)}</p>}
+      {payment.paid_amount !== undefined && <p className="text-white/50">Paid: {fmt(payment.paid_amount)}</p>}
+      {payment.remaining_balance !== undefined && <p className="text-white/50">Balance: {fmt(payment.remaining_balance)}</p>}
+      {payment.order_status && <p className="text-white/40">Order status: {payment.order_status}</p>}
+      <p className="text-white/40">Method: {payment.payment_method}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  const normalized = String(status ?? '').toUpperCase();
+  const className =
+    normalized === 'SUCCESS' || normalized === 'APPROVED' || normalized === 'PAID'
+      ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+      : normalized === 'FAILED' || normalized === 'REJECTED'
+        ? 'border-red-500/25 bg-red-500/10 text-red-300'
+        : 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300';
+
+  return (
+    <span className={`w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${className}`}>
+      {status ?? 'PENDING'}
+    </span>
+  );
 }

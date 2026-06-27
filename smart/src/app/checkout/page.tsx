@@ -180,8 +180,8 @@ export default function CheckoutPage() {
                             <SummaryPill label="Remaining" value={fmtMoney(pendingInstallmentOrder.remaining_balance ?? 0)} />
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3">
-                            <Link href="/profile" className="inline-flex justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-3 font-bold text-white">
-                                View dashboard
+                            <Link href="/orders" className="inline-flex justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-3 font-bold text-white">
+                                View orders
                             </Link>
                             <Link href="/marketplace" className="inline-flex justify-center rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/70 hover:text-white">
                                 Continue shopping

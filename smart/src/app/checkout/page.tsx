@@ -19,6 +19,12 @@ interface CartItem {
     minimum_wallet_balance_required: number;
 }
 
+interface UserProfile {
+    cbrilliance_email?: string | null;
+    cbrilliance_email_verified?: boolean;
+    cbrilliance_email_verified_at?: string | null;
+}
+
 type PaymentMode = 'FULL' | 'INSTALLMENT';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -37,6 +43,7 @@ export default function CheckoutPage() {
     const [submitting, setSubmitting] = useState(false);
     const [paymentMode, setPaymentMode] = useState<PaymentMode>('FULL');
     const [externalEmail, setExternalEmail] = useState('');
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [error, setError] = useState('');
     const [pendingInstallmentOrder, setPendingInstallmentOrder] = useState<{
         id: string;
@@ -44,6 +51,7 @@ export default function CheckoutPage() {
         total_amount?: string;
         deposit_amount?: string;
         remaining_balance?: string;
+        requires_approval?: boolean;
     } | null>(null);
 
     const fetchCart = async () => {
@@ -60,6 +68,22 @@ export default function CheckoutPage() {
             } else {
                 setError(data.message || 'Failed to load cart.');
             }
+
+            try {
+                const profileRes = await fetch(`${API_URL}/user/profile`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (profileRes.ok) {
+                    const profileData = await profileRes.json();
+                    const user = profileData.user ?? profileData;
+                    setUserProfile(user);
+                    if (user?.cbrilliance_email_verified && user?.cbrilliance_email) {
+                        setExternalEmail(String(user.cbrilliance_email));
+                    }
+                }
+            } catch {
+                setUserProfile(null);
+            }
         } catch { setError('Connection error. Please try again.'); }
         setLoading(false);
     };
@@ -69,6 +93,7 @@ export default function CheckoutPage() {
     const total = cartItems.reduce((acc, i) => acc + parseFloat(i.price) * i.quantity, 0);
     const allInstallmentEnabled = cartItems.every(i => i.installment_enabled);
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cbrillianceVerified = userProfile?.cbrilliance_email_verified === true;
 
     const handlePlaceOrder = async () => {
         const token = localStorage.getItem('userToken');
@@ -76,12 +101,12 @@ export default function CheckoutPage() {
         
         const trimmedExternalEmail = externalEmail.trim();
 
-        if (paymentMode === 'INSTALLMENT' && !trimmedExternalEmail) {
+        if (paymentMode === 'INSTALLMENT' && !cbrillianceVerified && !trimmedExternalEmail) {
             setError('Please provide your Cbrilliance email for installment approval.');
             return;
         }
 
-        if (paymentMode === 'INSTALLMENT' && !emailPattern.test(trimmedExternalEmail)) {
+        if (paymentMode === 'INSTALLMENT' && !cbrillianceVerified && !emailPattern.test(trimmedExternalEmail)) {
             setError('Please provide a valid Cbrilliance email address.');
             return;
         }
@@ -89,13 +114,17 @@ export default function CheckoutPage() {
         setSubmitting(true);
         setError('');
         try {
+            const payload: { payment_mode: PaymentMode; externalEmail?: string } = {
+                payment_mode: paymentMode,
+            };
+            if (paymentMode === 'INSTALLMENT' && !cbrillianceVerified) {
+                payload.externalEmail = trimmedExternalEmail;
+            }
+
             const res = await fetch(`${API_URL}/order/checkout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ 
-                    payment_mode: paymentMode,
-                    externalEmail: paymentMode === 'INSTALLMENT' ? trimmedExternalEmail : null
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
             if (data.success) {
@@ -107,7 +136,9 @@ export default function CheckoutPage() {
                         total_amount: order?.total_amount,
                         deposit_amount: order?.deposit_amount,
                         remaining_balance: order?.remaining_balance,
+                        requires_approval: !cbrillianceVerified && order?.status === 'AWAITING_APPROVAL',
                     });
+                    setSubmitting(false);
                     return;
                 }
 
@@ -170,9 +201,13 @@ export default function CheckoutPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold mb-3">Installment request pending admin approval</h2>
+                        <h2 className="text-2xl font-bold mb-3">
+                            {pendingInstallmentOrder.requires_approval ? 'Installment request pending admin approval' : 'Installment order created'}
+                        </h2>
                         <p className="text-white/60 leading-relaxed mb-6">
-                            Your order has been submitted with {pendingInstallmentOrder.external_email}. Payment will be enabled on your dashboard after admin approval.
+                            {pendingInstallmentOrder.requires_approval
+                                ? `Your order has been submitted with ${pendingInstallmentOrder.external_email}. Payment will be enabled on your dashboard after admin approval.`
+                                : 'Your Cbrilliance email is already verified. Go to your orders dashboard to start the first-deposit bank payment.'}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
                             <SummaryPill label="Total" value={fmtMoney(pendingInstallmentOrder.total_amount ?? total)} />
@@ -263,12 +298,21 @@ export default function CheckoutPage() {
                                             </svg>
                                         }
                                         title="Pay in Instalments"
-                                        description="Submit your Cbrilliance email for admin approval before payment."
+                                        description={cbrillianceVerified ? 'Your Cbrilliance email is verified. Continue from Orders after checkout.' : 'Submit your Cbrilliance email for admin approval before payment.'}
                                         badge={<span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full text-xs">Flexible</span>}
-                                        amount="Approval required"
+                                        amount={cbrillianceVerified ? 'Verified' : 'Approval required'}
                                     />
                                 </div>
-                                {paymentMode === 'INSTALLMENT' && (
+                                {paymentMode === 'INSTALLMENT' && cbrillianceVerified && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                                        <p className="text-sm font-semibold text-emerald-200">Cbrilliance email verified</p>
+                                        {userProfile?.cbrilliance_email && (
+                                            <p className="text-xs text-emerald-100/70 mt-1 break-all">{userProfile.cbrilliance_email}</p>
+                                        )}
+                                        <p className="text-xs text-emerald-100/70 mt-2">The checkout will use your saved verified email. No new approval email is required.</p>
+                                    </motion.div>
+                                )}
+                                {paymentMode === 'INSTALLMENT' && !cbrillianceVerified && (
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6">
                                         <label className="block text-sm font-medium text-white/70 mb-2">Cbrilliance email for approval</label>
                                         <input 
@@ -295,7 +339,7 @@ export default function CheckoutPage() {
                                     <Row label="Shipping" value="Free" valueClass="text-green-400" />
                                     {paymentMode === 'INSTALLMENT' && (
                                         <>
-                                            <Row label="Approval status" value="Pending review after checkout" valueClass="text-yellow-300" />
+                                            <Row label="Approval status" value={cbrillianceVerified ? 'Verified account' : 'Pending review after checkout'} valueClass={cbrillianceVerified ? 'text-emerald-300' : 'text-yellow-300'} />
                                         </>
                                     )}
                                 </div>

@@ -5,7 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
-const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops'];
+const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops', 'Vehicles'];
+const MAX_PRODUCT_IMAGES = 7;
+
+interface ExistingProductImage {
+  url: string;
+  public_id: string;
+}
 
 interface EditFormState {
   name: string;
@@ -13,8 +19,10 @@ interface EditFormState {
   description: string;
   category: string;
   stock: string;
-  images: File[];
-  imagePreviews: string[];
+  existingImages: ExistingProductImage[];
+  newImages: File[];
+  newImagePreviews: string[];
+  thumbnailIndex: number;
 }
 
 export default function EditProductPage() {
@@ -29,8 +37,10 @@ export default function EditProductPage() {
     description: '',
     category: 'Smart Watches',
     stock: '',
-    images: [],
-    imagePreviews: [],
+    existingImages: [],
+    newImages: [],
+    newImagePreviews: [],
+    thumbnailIndex: 0,
   });
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
@@ -55,9 +65,16 @@ export default function EditProductPage() {
           return;
         }
 
-        const existingImages: string[] = (product.image_urls && product.image_urls.length
+        const imageUrls: string[] = (product.image_urls && product.image_urls.length
           ? product.image_urls
-          : [product.image_url || product.image || '/images/smartwatch.png']).slice(0, 4);
+          : [product.image_url || product.image || '/images/smartwatch.png']).slice(0, MAX_PRODUCT_IMAGES);
+        const publicIds: string[] = Array.isArray(product.image_public_ids) ? product.image_public_ids : [];
+        const existingImages = imageUrls.map((url, index) => ({
+          url,
+          public_id: publicIds[index] || (index === 0 ? String(product.image_public_id ?? '') : ''),
+        }));
+        const primaryImageUrl = String(product.image_url || product.image || imageUrls[0] || '');
+        const thumbnailIndex = Math.max(0, existingImages.findIndex((image) => image.url === primaryImageUrl));
 
         setForm({
           name: String(product.name ?? ''),
@@ -65,8 +82,10 @@ export default function EditProductPage() {
           description: String(product.description ?? ''),
           category: String(product.category ?? 'Smart Watches'),
           stock: String(product.stock ?? ''),
-          images: [],
-          imagePreviews: existingImages,
+          existingImages,
+          newImages: [],
+          newImagePreviews: [],
+          thumbnailIndex,
         });
       } catch {
         setError('Failed to load product.');
@@ -85,13 +104,93 @@ export default function EditProductPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []).slice(0, 4);
-    const previews = selected.map((file) => URL.createObjectURL(file));
+    const selected = Array.from(e.target.files || []);
+    const availableSlots = Math.max(0, MAX_PRODUCT_IMAGES - form.existingImages.length);
+    const imageFiles = selected.filter((file) => file.type.startsWith('image/')).slice(0, availableSlots);
+    const newImagePreviews = imageFiles.map((file) => URL.createObjectURL(file));
+
     setForm((prev) => ({
       ...prev,
-      images: selected,
-      imagePreviews: previews.length > 0 ? previews : prev.imagePreviews,
+      newImages: imageFiles,
+      newImagePreviews,
+      thumbnailIndex: Math.min(prev.thumbnailIndex, Math.max(prev.existingImages.length + imageFiles.length - 1, 0)),
     }));
+    if (selected.length !== imageFiles.length) {
+      setError(`Only image files are accepted, and the final product image count cannot exceed ${MAX_PRODUCT_IMAGES}.`);
+    } else {
+      setError('');
+    }
+  };
+
+  const moveExistingImage = (fromIndex: number, direction: -1 | 1) => {
+    setForm((prev) => {
+      const toIndex = fromIndex + direction;
+      if (toIndex < 0 || toIndex >= prev.existingImages.length) return prev;
+
+      const existingImages = [...prev.existingImages];
+      [existingImages[fromIndex], existingImages[toIndex]] = [existingImages[toIndex], existingImages[fromIndex]];
+
+      let thumbnailIndex = prev.thumbnailIndex;
+      if (thumbnailIndex === fromIndex) thumbnailIndex = toIndex;
+      else if (thumbnailIndex === toIndex) thumbnailIndex = fromIndex;
+
+      return { ...prev, existingImages, thumbnailIndex };
+    });
+  };
+
+  const moveNewImage = (fromIndex: number, direction: -1 | 1) => {
+    setForm((prev) => {
+      const toIndex = fromIndex + direction;
+      if (toIndex < 0 || toIndex >= prev.newImages.length) return prev;
+
+      const newImages = [...prev.newImages];
+      const newImagePreviews = [...prev.newImagePreviews];
+      [newImages[fromIndex], newImages[toIndex]] = [newImages[toIndex], newImages[fromIndex]];
+      [newImagePreviews[fromIndex], newImagePreviews[toIndex]] = [newImagePreviews[toIndex], newImagePreviews[fromIndex]];
+
+      const offset = prev.existingImages.length;
+      let thumbnailIndex = prev.thumbnailIndex;
+      if (thumbnailIndex === offset + fromIndex) thumbnailIndex = offset + toIndex;
+      else if (thumbnailIndex === offset + toIndex) thumbnailIndex = offset + fromIndex;
+
+      return { ...prev, newImages, newImagePreviews, thumbnailIndex };
+    });
+  };
+
+  const removeExistingImage = (indexToRemove: number) => {
+    setForm((prev) => {
+      const existingImages = prev.existingImages.filter((_, index) => index !== indexToRemove);
+      const finalCount = existingImages.length + prev.newImages.length;
+      let thumbnailIndex = prev.thumbnailIndex;
+      if (thumbnailIndex === indexToRemove) thumbnailIndex = 0;
+      else if (thumbnailIndex > indexToRemove) thumbnailIndex -= 1;
+
+      return {
+        ...prev,
+        existingImages,
+        thumbnailIndex: Math.min(thumbnailIndex, Math.max(finalCount - 1, 0)),
+      };
+    });
+  };
+
+  const removeNewImage = (indexToRemove: number) => {
+    setForm((prev) => {
+      const offset = prev.existingImages.length;
+      const absoluteIndex = offset + indexToRemove;
+      const newImages = prev.newImages.filter((_, index) => index !== indexToRemove);
+      const newImagePreviews = prev.newImagePreviews.filter((_, index) => index !== indexToRemove);
+      const finalCount = prev.existingImages.length + newImages.length;
+      let thumbnailIndex = prev.thumbnailIndex;
+      if (thumbnailIndex === absoluteIndex) thumbnailIndex = 0;
+      else if (thumbnailIndex > absoluteIndex) thumbnailIndex -= 1;
+
+      return {
+        ...prev,
+        newImages,
+        newImagePreviews,
+        thumbnailIndex: Math.min(thumbnailIndex, Math.max(finalCount - 1, 0)),
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,6 +198,11 @@ export default function EditProductPage() {
     if (!id) return;
     if (!form.name.trim() || !form.price.trim() || !form.description.trim()) {
       setError('Please fill in name, price, and description.');
+      return;
+    }
+    const finalImageCount = form.existingImages.length + form.newImages.length;
+    if (finalImageCount < 1 || finalImageCount > MAX_PRODUCT_IMAGES) {
+      setError(`A product must have between 1 and ${MAX_PRODUCT_IMAGES} images.`);
       return;
     }
 
@@ -112,8 +216,9 @@ export default function EditProductPage() {
       formData.append('description', form.description);
       formData.append('category', form.category);
       if (form.stock.trim() !== '') formData.append('stock', form.stock);
-      form.images.forEach((image, index) => {
-        if (index === 0) formData.append('image', image);
+      formData.append('images_manifest', JSON.stringify(form.existingImages));
+      formData.append('thumbnail_index', String(form.thumbnailIndex));
+      form.newImages.forEach((image) => {
         formData.append('images', image);
       });
 
@@ -162,7 +267,7 @@ export default function EditProductPage() {
 
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-8">
         <h1 className="text-3xl font-bold text-white">Edit Product</h1>
-        <p className="text-white/40 text-sm mt-1">Update product details and optionally upload new images.</p>
+        <p className="text-white/40 text-sm mt-1">Update product details, image order, and thumbnail selection.</p>
       </motion.div>
 
       {error && (
@@ -206,18 +311,54 @@ export default function EditProductPage() {
         </div>
 
         <div>
-          <label className={labelClass}>Product Images (optional, up to 4)</label>
+          <label className={labelClass}>Product Images (1 to 7)</label>
           <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" />
-          <p className="text-xs text-white/40 mt-2">Upload new images only if you want to replace existing ones.</p>
-          {form.imagePreviews.length > 0 && (
+          <p className="text-xs text-white/40 mt-2">Existing images are kept in this order. New uploads are appended after them.</p>
+          {form.existingImages.length > 0 && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {form.imagePreviews.slice(0, 4).map((preview, index) => (
-                <div key={`${preview}-${index}`} className="relative">
-                  <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-20 object-cover rounded-lg bg-white/5 p-1" />
-                  {index === 0 && <span className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
+              {form.existingImages.map((image, index) => (
+                <div key={`${image.url}-${index}`} className="relative rounded-xl border border-white/10 bg-white/5 p-2">
+                  <img src={image.url} alt={`Existing image ${index + 1}`} className="w-full h-24 object-cover rounded-lg bg-white/5" />
+                  {form.thumbnailIndex === index && <span className="absolute top-3 left-3 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
+                  <div className="mt-2 flex items-center justify-between gap-1">
+                    <button type="button" onClick={() => moveExistingImage(index, -1)} disabled={index === 0} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Up</button>
+                    <button type="button" onClick={() => moveExistingImage(index, 1)} disabled={index === form.existingImages.length - 1} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Down</button>
+                  </div>
+                  <button type="button" onClick={() => setForm((prev) => ({ ...prev, thumbnailIndex: index }))} className="mt-2 w-full rounded-lg border border-blue-500/30 px-2 py-1.5 text-xs text-blue-200 hover:bg-blue-500/10">
+                    Set thumbnail
+                  </button>
+                  <button type="button" onClick={() => removeExistingImage(index)} className="mt-2 w-full rounded-lg border border-red-500/30 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10">
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>
+          )}
+          {form.newImagePreviews.length > 0 && (
+            <>
+              <p className="text-xs font-semibold uppercase text-white/50 mt-5">New uploads</p>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {form.newImagePreviews.map((preview, index) => {
+                  const absoluteIndex = form.existingImages.length + index;
+                  return (
+                    <div key={`${preview}-${index}`} className="relative rounded-xl border border-white/10 bg-white/5 p-2">
+                      <img src={preview} alt={`New upload ${index + 1}`} className="w-full h-24 object-cover rounded-lg bg-white/5" />
+                      {form.thumbnailIndex === absoluteIndex && <span className="absolute top-3 left-3 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <button type="button" onClick={() => moveNewImage(index, -1)} disabled={index === 0} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Up</button>
+                        <button type="button" onClick={() => moveNewImage(index, 1)} disabled={index === form.newImagePreviews.length - 1} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Down</button>
+                      </div>
+                      <button type="button" onClick={() => setForm((prev) => ({ ...prev, thumbnailIndex: absoluteIndex }))} className="mt-2 w-full rounded-lg border border-blue-500/30 px-2 py-1.5 text-xs text-blue-200 hover:bg-blue-500/10">
+                        Set thumbnail
+                      </button>
+                      <button type="button" onClick={() => removeNewImage(index)} className="mt-2 w-full rounded-lg border border-red-500/30 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10">
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 

@@ -26,6 +26,9 @@ export type ProfileResponse = {
   lastname?: string;
   username?: string;
   email?: string;
+  cbrilliance_email?: string | null;
+  cbrilliance_email_verified?: boolean;
+  cbrilliance_email_verified_at?: string | null;
 };
 
 type LoginResult = {
@@ -83,9 +86,13 @@ export async function loginWithRoleFallback(payload: LoginPayload): Promise<Logi
 }
 
 export async function fetchUserProfile(token: string): Promise<ProfileResponse> {
-  return apiRequest<ProfileResponse>('/user/profile', {
+  const data = await apiRequest<ProfileResponse | { user?: ProfileResponse }>('/user/profile', {
     token,
   });
+  if ('user' in data && data.user) {
+    return data.user;
+  }
+  return data as ProfileResponse;
 }
 
 export async function signupUser(payload: SignupPayload): Promise<{ message?: string }> {

@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 
 const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops', 'Vehicles'];
+const MAX_PRODUCT_IMAGES = 7;
 
 interface FormState {
   name: string;
@@ -13,6 +14,7 @@ interface FormState {
   description: string;
   images: File[];
   imagePreviews: string[];
+  thumbnailIndex: number;
   category: string;
   minimum_deposit_percentage: number;
   installment_duration_months: number;
@@ -31,6 +33,7 @@ export default function NewProduct() {
     description: '',
     images: [],
     imagePreviews: [],
+    thumbnailIndex: 0,
     category: 'Smart Watches',
     minimum_deposit_percentage: 20,
     installment_duration_months: 12,
@@ -53,13 +56,55 @@ export default function NewProduct() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []).slice(0, 4);
-    const previews = selected.map((file) => URL.createObjectURL(file));
+    const selected = Array.from(e.target.files || []);
+    const imageFiles = selected.filter((file) => file.type.startsWith('image/')).slice(0, MAX_PRODUCT_IMAGES);
+    const previews = imageFiles.map((file) => URL.createObjectURL(file));
     setForm((prev) => ({
       ...prev,
-      images: selected,
-      imagePreviews: previews
+      images: imageFiles,
+      imagePreviews: previews,
+      thumbnailIndex: Math.min(prev.thumbnailIndex, Math.max(imageFiles.length - 1, 0)),
     }));
+    if (selected.length !== imageFiles.length) {
+      setError(`Only image files are accepted, with a maximum of ${MAX_PRODUCT_IMAGES} images.`);
+    } else {
+      setError('');
+    }
+  };
+
+  const moveImage = (fromIndex: number, direction: -1 | 1) => {
+    setForm((prev) => {
+      const toIndex = fromIndex + direction;
+      if (toIndex < 0 || toIndex >= prev.images.length) return prev;
+
+      const images = [...prev.images];
+      const imagePreviews = [...prev.imagePreviews];
+      [images[fromIndex], images[toIndex]] = [images[toIndex], images[fromIndex]];
+      [imagePreviews[fromIndex], imagePreviews[toIndex]] = [imagePreviews[toIndex], imagePreviews[fromIndex]];
+
+      let thumbnailIndex = prev.thumbnailIndex;
+      if (thumbnailIndex === fromIndex) thumbnailIndex = toIndex;
+      else if (thumbnailIndex === toIndex) thumbnailIndex = fromIndex;
+
+      return { ...prev, images, imagePreviews, thumbnailIndex };
+    });
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setForm((prev) => {
+      const images = prev.images.filter((_, index) => index !== indexToRemove);
+      const imagePreviews = prev.imagePreviews.filter((_, index) => index !== indexToRemove);
+      let thumbnailIndex = prev.thumbnailIndex;
+      if (thumbnailIndex === indexToRemove) thumbnailIndex = 0;
+      else if (thumbnailIndex > indexToRemove) thumbnailIndex -= 1;
+
+      return {
+        ...prev,
+        images,
+        imagePreviews,
+        thumbnailIndex: Math.min(thumbnailIndex, Math.max(images.length - 1, 0)),
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,11 +129,9 @@ export default function NewProduct() {
       formData.append('installment_enabled', form.installment_enabled.toString());
       formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required.toString());
       formData.append('grace_period_days', form.grace_period_days.toString());
+      formData.append('thumbnail_index', String(form.thumbnailIndex));
 
-      form.images.forEach((image, index) => {
-        if (index === 0) {
-          formData.append('image', image);
-        }
+      form.images.forEach((image) => {
         formData.append('images', image);
       });
 
@@ -222,16 +265,26 @@ export default function NewProduct() {
 
         {/* Image Upload */}
         <div>
-          <label className={labelClass}>Product Images (up to 4) <span className="text-red-400">*</span></label>
+          <label className={labelClass}>Product Images (up to 7) <span className="text-red-400">*</span></label>
           <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" required />
-          <p className="text-xs text-white/40 mt-2">The first image becomes the thumbnail (legacy image).</p>
+          <p className="text-xs text-white/40 mt-2">Images are saved in this order. Choose one image as the thumbnail.</p>
           {form.imagePreviews.length > 0 && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {form.imagePreviews.map((preview, index) => (
-                <div key={preview} className="relative">
+                <div key={preview} className="relative rounded-xl border border-white/10 bg-white/5 p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-20 object-cover rounded-lg bg-white/5 p-1" />
-                  {index === 0 && <span className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
+                  <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-24 object-cover rounded-lg bg-white/5" />
+                  {form.thumbnailIndex === index && <span className="absolute top-3 left-3 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
+                  <div className="mt-2 flex items-center justify-between gap-1">
+                    <button type="button" onClick={() => moveImage(index, -1)} disabled={index === 0} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Up</button>
+                    <button type="button" onClick={() => moveImage(index, 1)} disabled={index === form.imagePreviews.length - 1} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Down</button>
+                  </div>
+                  <button type="button" onClick={() => setForm((prev) => ({ ...prev, thumbnailIndex: index }))} className="mt-2 w-full rounded-lg border border-blue-500/30 px-2 py-1.5 text-xs text-blue-200 hover:bg-blue-500/10">
+                    Set thumbnail
+                  </button>
+                  <button type="button" onClick={() => removeImage(index)} className="mt-2 w-full rounded-lg border border-red-500/30 px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10">
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>

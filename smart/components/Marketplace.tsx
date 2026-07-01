@@ -6,6 +6,31 @@ import { Product, products as localProducts } from '@/lib/productsStore';
 import { useRouter } from 'next/navigation';
 import CbrixiLogo from './CbrixiLogo';
 
+const getDescriptionParagraphs = (description: string) => {
+  const normalized = description.replace(/\r\n/g, '\n').trim();
+  const paragraphs = normalized
+    .split(/\n\s*\n|\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length > 1) {
+    return paragraphs;
+  }
+
+  const sentences = normalized.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)?.map((sentence) => sentence.trim()).filter(Boolean) ?? [];
+
+  if (sentences.length <= 2) {
+    return normalized ? [normalized] : [];
+  }
+
+  const groupedSentences: string[] = [];
+  for (let index = 0; index < sentences.length; index += 2) {
+    groupedSentences.push(sentences.slice(index, index + 2).join(' '));
+  }
+
+  return groupedSentences;
+};
+
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
@@ -465,7 +490,7 @@ export default function Marketplace() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 30 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-4xl bg-[#0a0a0f] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl flex flex-col shadow-black/80 max-h-[90vh] sm:max-h-[85vh]"
+              className="relative w-[97vw] max-w-[1400px] bg-[#0a0a0f] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col shadow-black/80 max-h-[96vh]"
               onClick={(e) => e.stopPropagation()}
             >
               <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white transition-colors">
@@ -474,8 +499,8 @@ export default function Marketplace() {
                 </svg>
               </button>
 
-              <div className="flex flex-col sm:flex-row w-full flex-1 overflow-hidden">
-                <div className="relative flex-shrink-0 h-64 sm:h-auto sm:w-1/2 flex items-center justify-center p-6 sm:p-8 bg-[#07070a] overflow-hidden">
+              <div className="flex flex-col w-full flex-1 overflow-y-auto">
+                <div className="relative flex-shrink-0 h-[58vh] min-h-[360px] sm:h-[66vh] lg:h-[72vh] flex items-center justify-center bg-[#07070a] overflow-hidden">
                   <div className={`absolute inset-0 bg-gradient-to-br ${selectedProduct.gradient} opacity-20`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
                   
@@ -488,7 +513,7 @@ export default function Marketplace() {
                     <img 
                       src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image} 
                       alt={selectedProduct.name} 
-                      className="relative z-10 w-full h-full object-contain" 
+                      className="absolute inset-0 z-10 w-full h-full object-cover object-center" 
                       draggable={false}
                     />
                     
@@ -540,13 +565,25 @@ export default function Marketplace() {
                   </div>
                 </div>
 
-                <div className="p-6 sm:p-8 sm:p-10 flex flex-col justify-center text-white sm:w-1/2 relative bg-[#0a0a0f] overflow-y-auto flex-1">
-                  <div className="relative z-10">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
-                      <h2 className="text-2xl sm:text-3xl font-bold leading-tight text-white">{selectedProduct.name}</h2>
-                      <p className="text-xl sm:text-2xl font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-1.5 rounded-xl whitespace-nowrap">{selectedProduct.price}</p>
+                <div className="p-5 sm:p-7 lg:p-8 flex flex-col text-white relative bg-[#0a0a0f] flex-1">
+                  <div className="relative z-10 mx-auto w-full max-w-6xl space-y-5">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 md:gap-8">
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold uppercase text-blue-300/80">{selectedProduct.category}</p>
+                          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold leading-tight text-white">{selectedProduct.name}</h2>
+                        </div>
+                        <p className="text-xl sm:text-2xl font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl whitespace-nowrap w-fit">{selectedProduct.price}</p>
+                      </div>
                     </div>
-                    <p className="text-white/60 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8">{selectedProduct.description}</p>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5 max-w-5xl">
+                      <p className="text-xs font-semibold uppercase text-white/35 mb-3">Description</p>
+                      {getDescriptionParagraphs(selectedProduct.description).map((paragraph, index) => (
+                        <p key={index} className="text-white/68 text-base sm:text-lg leading-8 mt-3 first:mt-0">
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={() => handleAddToCart(selectedProduct)}

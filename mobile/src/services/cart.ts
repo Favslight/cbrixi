@@ -89,12 +89,16 @@ export async function checkoutCart(
   paymentMode: 'FULL' | 'INSTALLMENT',
   externalEmail?: string,
 ): Promise<{ success?: boolean; order?: { order?: { id?: string } }; message?: string }> {
+  const body: { payment_mode: 'FULL' | 'INSTALLMENT'; externalEmail?: string } = {
+    payment_mode: paymentMode,
+  };
+  if (paymentMode === 'INSTALLMENT' && externalEmail) {
+    body.externalEmail = externalEmail;
+  }
+
   return apiRequest<{ success?: boolean; order?: { order?: { id?: string } }; message?: string }>('/order/checkout', {
     method: 'POST',
     token,
-    body: {
-      payment_mode: paymentMode,
-      externalEmail: paymentMode === 'INSTALLMENT' ? externalEmail ?? null : null,
-    },
+    body,
   });
 }

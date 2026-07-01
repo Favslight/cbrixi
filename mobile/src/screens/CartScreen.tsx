@@ -26,6 +26,7 @@ import {
   toNaira,
   updateCartItemQuantity,
 } from '../services/cart';
+import { fetchUserProfile, type ProfileResponse } from '../services/auth';
 import { storage } from '../services/storage';
 import type { RootStackParamList } from '../types/navigation';
 import type { CartItem } from '../services/cart';
@@ -78,6 +79,7 @@ export function CartScreen({ navigation, route }: Props) {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [externalEmail, setExternalEmail] = useState('');
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [paymentMode, setPaymentMode] = useState<'FULL' | 'INSTALLMENT'>(
     route.params?.initialPaymentMode ?? 'FULL',
   );
@@ -99,6 +101,15 @@ export function CartScreen({ navigation, route }: Props) {
       setError('');
       const items = await fetchCart(token);
       setCartItems(items);
+      try {
+        const userProfile = await fetchUserProfile(token);
+        setProfile(userProfile);
+        if (userProfile.cbrilliance_email_verified && userProfile.cbrilliance_email) {
+          setExternalEmail(userProfile.cbrilliance_email);
+        }
+      } catch {
+        setProfile(null);
+      }
     } catch {
       setError('Unable to load cart right now.');
       setCartItems([]);
@@ -134,6 +145,7 @@ export function CartScreen({ navigation, route }: Props) {
 
   const installmentAllowed =
     cartItems.length > 0 && cartItems.every((item) => item.installment_enabled !== false);
+  const cbrillianceVerified = profile?.cbrilliance_email_verified === true;
   const installmentMonths = useMemo(() => {
     const months = cartItems
       .map((item) => item.installment_duration_months || 6)
@@ -202,12 +214,12 @@ export function CartScreen({ navigation, route }: Props) {
       return;
     }
 
-    if (paymentMode === 'INSTALLMENT' && !externalEmail.trim()) {
+    if (paymentMode === 'INSTALLMENT' && !cbrillianceVerified && !externalEmail.trim()) {
       setError('Please provide an email to verify your installment plan.');
       return;
     }
 
-    if (paymentMode === 'INSTALLMENT' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalEmail.trim())) {
+    if (paymentMode === 'INSTALLMENT' && !cbrillianceVerified && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalEmail.trim())) {
       setError('Please provide an email to verify your installment plan.');
       return;
     }
@@ -218,7 +230,11 @@ export function CartScreen({ navigation, route }: Props) {
     setSubmitting(true);
     setError('');
     try {
-      const response = await checkoutCart(token, paymentMode, externalEmail.trim() || undefined);
+      const response = await checkoutCart(
+        token,
+        paymentMode,
+        paymentMode === 'INSTALLMENT' && !cbrillianceVerified ? externalEmail.trim() : undefined,
+      );
       const orderId = response.order?.order?.id;
       if (!response.success || !orderId) {
         throw new Error(response.message || 'Checkout failed.');
@@ -226,8 +242,10 @@ export function CartScreen({ navigation, route }: Props) {
 
       if (paymentMode === 'INSTALLMENT') {
         Alert.alert(
-          'Installment request pending admin approval',
-          'Payment will be enabled on your Orders page after your Cbrilliance email is approved.',
+          cbrillianceVerified ? 'Installment order created' : 'Installment request pending admin approval',
+          cbrillianceVerified
+            ? 'Your Cbrilliance email is already verified. Open Orders to start the first-deposit bank payment.'
+            : 'Payment will be enabled on your Orders page after your Cbrilliance email is approved.',
         );
         navigation.navigate('Orders');
         return;
@@ -382,7 +400,19 @@ export function CartScreen({ navigation, route }: Props) {
                       />
                     </View>
 
-                    {paymentMode === 'INSTALLMENT' && installmentAllowed ? (
+                    {paymentMode === 'INSTALLMENT' && installmentAllowed && cbrillianceVerified ? (
+                      <View style={styles.verifiedEmailBox}>
+                        <Text style={styles.verifiedEmailTitle}>Cbrilliance email verified</Text>
+                        {profile?.cbrilliance_email ? (
+                          <Text style={styles.verifiedEmailText}>{profile.cbrilliance_email}</Text>
+                        ) : null}
+                        <Text style={styles.verifiedEmailText}>
+                          Checkout will use your saved verified email.
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {paymentMode === 'INSTALLMENT' && installmentAllowed && !cbrillianceVerified ? (
                       <View style={styles.emailSection}>
                         <Text style={styles.emailLabel}>Cbrilliance email for approval</Text>
                       <TextInput
@@ -405,7 +435,9 @@ export function CartScreen({ navigation, route }: Props) {
                       <View style={styles.paymentHint}>
                         <Text style={styles.paymentHintTitle}>Installment setup</Text>
                           <Text style={styles.paymentHintText}>
-                            Payment starts after admin approval.
+                            {cbrillianceVerified
+                              ? 'Open Orders after checkout to pay the first deposit.'
+                              : 'Payment starts after admin approval.'}
                           </Text>
                           <Text style={styles.paymentHintText}>
                             The backend will calculate the required deposit and remaining balance.
@@ -678,6 +710,25 @@ const styles = StyleSheet.create({
   },
   emailHelp: {
     color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  verifiedEmailBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.2)',
+    gap: 4,
+  },
+  verifiedEmailTitle: {
+    color: '#A7F3D0',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  verifiedEmailText: {
+    color: '#D1FAE5',
     fontSize: 11,
     lineHeight: 17,
   },

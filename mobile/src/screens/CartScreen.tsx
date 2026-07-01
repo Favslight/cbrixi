@@ -227,9 +227,9 @@ export function CartScreen({ navigation, route }: Props) {
       if (paymentMode === 'INSTALLMENT') {
         Alert.alert(
           'Installment request pending admin approval',
-          'Payment will be enabled on your dashboard after your Cbrilliance email is approved.',
+          'Payment will be enabled on your Orders page after your Cbrilliance email is approved.',
         );
-        navigation.navigate('Home');
+        navigation.navigate('Orders');
         return;
       }
 
@@ -237,6 +237,7 @@ export function CartScreen({ navigation, route }: Props) {
         orderId,
         total,
         mode: paymentMode,
+        action: 'order',
       });
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Checkout failed.');
@@ -455,9 +456,9 @@ export function CartScreen({ navigation, route }: Props) {
                 <Ionicons name="cart" size={18} color={colors.background} />
               </View>
             </Pressable>
-            <Pressable style={styles.bottomNavItem}>
-              <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Profile</Text>
+            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Orders')}>
+              <Ionicons name="receipt-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.bottomLabel}>Orders</Text>
             </Pressable>
           </View>
         </View>

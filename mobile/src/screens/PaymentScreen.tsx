@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,22 +13,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
 import { colors } from '../constants/theme';
-import { API_BASE_URL } from '../services/api';
+import {
+  fetchMyOrders,
+  getDepositScheduleItem,
+  getPaymentSchedule,
+  initiateManualTransfer,
+  toNaira,
+  type ManualTransferResponse,
+  type OrderItem,
+  type PaymentScheduleItem,
+  type UserOrder,
+} from '../services/orders';
 import { storage } from '../services/storage';
 import type { RootStackParamList } from '../types/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Payment'>;
 
-type BankDetails = {
-  reference: string;
-  bank_name: string;
-  account_name: string;
-  account_number: string;
-  amount: number;
-};
-
 function Spinner({ small }: { small?: boolean }) {
   return <ActivityIndicator color={colors.textPrimary} size={small ? 'small' : 'large'} />;
+}
+
+function fmtMonth(value?: string | null, fallback?: number) {
+  if (!value) return fallback ? `Month ${fallback}` : 'Selected month';
+  return new Date(value).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function getItemName(item: OrderItem) {
+  return item.name ?? item.product_name ?? 'Product';
 }
 
 function InfoRow({
@@ -49,177 +59,235 @@ function InfoRow({
   );
 }
 
-function toDisplay(value: number): string {
-  return `N${Math.round(value).toLocaleString()}`;
-}
-
 export function PaymentScreen({ navigation, route }: Props) {
-  const { orderId, total, mode } = route.params;
-  const amountDue = total;
+  const { orderId, action = 'order', installmentId = null, label: routeLabel, total } = route.params;
 
+  const [order, setOrder] = useState<UserOrder | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
+  const [notice, setNotice] = useState('');
+  const [bankDetails, setBankDetails] = useState<ManualTransferResponse | null>(null);
 
-  useEffect(() => {
-    async function ensureSession() {
-      const token = await storage.getString(storage.keys.userToken);
-      if (!token) {
-        navigation.replace('Login');
-      }
-    }
-
-    ensureSession().catch(() => undefined);
-  }, [navigation]);
-
-  const handleBankTransfer = async () => {
+  const loadOrder = useCallback(async () => {
     const token = await storage.getString(storage.keys.userToken);
     if (!token) {
       navigation.replace('Login');
       return;
     }
 
-    setProcessing(true);
+    setLoadingOrder(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/payment/manual/initiate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          order_id: orderId,
-          installment_id: null,
-        }),
-      });
-
-      const data = (await response.json()) as BankDetails & { message?: string };
-
-      if (data.reference) {
-        setBankDetails(data);
-        return;
+      const orders = await fetchMyOrders(token);
+      const found = orders.find((candidate) => candidate.id === orderId) ?? null;
+      if (!found) {
+        setError('Order not found.');
       }
-
-      setError(data.message || 'Could not generate transfer instructions.');
+      setOrder(found);
     } catch {
-      setError('Connection error. Please try again.');
+      setError('Unable to load this order.');
+      setOrder(null);
+    } finally {
+      setLoadingOrder(false);
+    }
+  }, [navigation, orderId]);
+
+  useEffect(() => {
+    loadOrder().catch(() => undefined);
+  }, [loadOrder]);
+
+  const selectedInstallment = useMemo<PaymentScheduleItem | null>(() => {
+    if (!order || !installmentId) return null;
+    return getPaymentSchedule(order).find((item) => item.id === installmentId) ?? null;
+  }, [installmentId, order]);
+
+  const paymentSummary = useMemo(() => {
+    if (!order) {
+      return {
+        title: 'Bank payment',
+        label: routeLabel ?? 'Payment',
+        amount: total ?? 0,
+        helper: 'Load an order to continue.',
+      };
+    }
+
+    if (action === 'installment' && selectedInstallment) {
+      const summaryLabel = selectedInstallment.payment_label ?? fmtMonth(selectedInstallment.due_date, selectedInstallment.installment_number);
+      return {
+        title: 'Month payment',
+        label: summaryLabel,
+        amount: Number(selectedInstallment.remaining_amount ?? selectedInstallment.amount ?? order.next_payment_amount ?? 0),
+        helper: `This invoice is for ${summaryLabel}. It will wait for admin approval after you submit it.`,
+      };
+    }
+
+    if (action === 'complete') {
+      return {
+        title: 'Complete installment payment',
+        label: routeLabel ?? 'Complete payment',
+        amount: Number(order.remaining_balance ?? 0),
+        helper: 'This invoice covers the remaining balance. Admin approval will mark the remaining installments as settled.',
+      };
+    }
+
+    const depositItem = order.payment_mode === 'INSTALLMENT' ? getDepositScheduleItem(order) : null;
+
+    return {
+      title: order.payment_mode === 'INSTALLMENT' ? 'Deposit payment' : 'Order payment',
+      label: routeLabel ?? depositItem?.payment_label ?? (order.payment_mode === 'INSTALLMENT' ? 'First deposit' : 'Full order'),
+      amount: Number(depositItem?.remaining_amount ?? depositItem?.amount ?? order.deposit_amount ?? order.total_amount ?? total ?? 0),
+      helper: 'This bank invoice will be submitted for admin approval.',
+    };
+  }, [action, order, routeLabel, selectedInstallment, total]);
+
+  const handleBankTransfer = async () => {
+    if (!order) return;
+
+    const token = await storage.getString(storage.keys.userToken);
+    if (!token) {
+      navigation.replace('Login');
+      return;
+    }
+
+    if (action === 'installment' && !installmentId) {
+      setError('Installment ID is missing for this payment.');
+      return;
+    }
+
+    setProcessing(true);
+    setError('');
+    setNotice('');
+    try {
+      const data = await initiateManualTransfer(token, {
+        orderId: order.id,
+        installmentId: action === 'installment' ? installmentId : null,
+      });
+      setBankDetails(data);
+      setNotice('Invoice created. Use these details for transfer; the payment is now awaiting admin approval.');
+    } catch (transferError) {
+      const message =
+        transferError && typeof transferError === 'object' && 'message' in transferError
+          ? String((transferError as { message?: string }).message)
+          : 'Could not generate transfer instructions.';
+      setError(message);
     } finally {
       setProcessing(false);
     }
   };
-
-  useEffect(() => {
-    handleBankTransfer().catch(() => undefined);
-    // Manual bank transfer is the only payment path for now.
-  }, []);
 
   return (
     <AppBackground>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            <Pressable style={styles.backLink} onPress={() => navigation.goBack()}>
+            <Pressable style={styles.backLink} onPress={() => navigation.navigate('Orders')}>
               <Ionicons name="chevron-back" size={18} color={colors.textSecondary} />
-              <Text style={styles.backText}>Back to Checkout</Text>
+              <Text style={styles.backText}>Back to Orders</Text>
             </Pressable>
 
-            <Text style={styles.title}>Payment</Text>
-            <Text style={styles.subtitle}>Manual bank transfer is active for now.</Text>
+            <Text style={styles.title}>Bank Checkout</Text>
+            <Text style={styles.subtitle}>Review the order and create a bank invoice for admin approval.</Text>
 
+            {notice ? <Text style={styles.noticeTextTop}>{notice}</Text> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <View style={styles.amountCard}>
-              <View>
-                <Text style={styles.amountLabel}>
-                  {mode === 'INSTALLMENT' ? 'Installment Amount' : 'Total Due'}
-                </Text>
-                <Text style={styles.amountValue}>{toDisplay(amountDue)}</Text>
-                {mode === 'INSTALLMENT' ? (
-                  <Text style={styles.amountHint}>The backend calculates the exact installment payment.</Text>
-                ) : null}
+            {loadingOrder ? (
+              <View style={styles.loadingCard}>
+                <Spinner />
+                <Text style={styles.loadingText}>Loading order...</Text>
               </View>
-              <View style={styles.amountIcon}>
-                <Ionicons name="card-outline" size={22} color={colors.primary} />
-              </View>
-            </View>
-
-            {bankDetails ? (
-              <View style={styles.bankCard}>
-                <View style={styles.bankHeader}>
-                  <View style={styles.bankIcon}>
-                    <Ionicons name="business-outline" size={20} color="#C084FC" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.bankTitle}>Bank Transfer Details</Text>
-                    <Text style={styles.bankSubtitle}>
-                      Transfer the exact amount below and use the reference code.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.bankRows}>
-                  <InfoRow label="Bank Name" value={bankDetails.bank_name} />
-                  <InfoRow label="Account Name" value={bankDetails.account_name} />
-                  <InfoRow label="Account Number" value={bankDetails.account_number} />
-                  <InfoRow label="Amount" value={toDisplay(Number(bankDetails.amount))} highlight />
-                  <InfoRow label="Reference" value={bankDetails.reference} highlight />
-                </View>
-
-                <View style={styles.noticeBox}>
-                  <Text style={styles.noticeTitle}>Important</Text>
-                  <Text style={styles.noticeText}>
-                    Use the reference number in your transfer narration. An invoice has been sent to your email.
-                  </Text>
-                </View>
-
-                <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('Home')}>
-                  <Text style={styles.primaryButtonText}>Return to Home</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.bankCard}>
-                <View style={styles.bankHeader}>
-                  <View style={styles.bankIcon}>
-                    <Ionicons name="business-outline" size={20} color="#C084FC" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.bankTitle}>Generating Bank Details</Text>
-                    <Text style={styles.bankSubtitle}>
-                      We are preparing transfer instructions for this order.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.bankRows}>
-                  <InfoRow label="Order ID" value={String(orderId)} highlight />
-                  <InfoRow label="Amount Due" value={toDisplay(amountDue)} highlight />
-                  <InfoRow
-                    label="Payment Type"
-                    value={mode === 'INSTALLMENT' ? 'Installment deposit' : 'Full payment'}
-                  />
-                </View>
-
-                <Pressable
-                  onPress={handleBankTransfer}
-                  disabled={processing}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed && styles.pressed,
-                    processing && styles.disabled,
-                  ]}
-                >
-                  {processing ? (
-                    <View style={styles.loadingRow}>
-                      <Spinner small />
-                      <Text style={styles.primaryButtonText}>Loading...</Text>
+            ) : order ? (
+              <>
+                <View style={styles.orderCard}>
+                  <View style={styles.orderHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>Order summary</Text>
+                      <Text style={styles.orderId}>Order {order.id}</Text>
                     </View>
+                    <View style={styles.modeBadge}>
+                      <Text style={styles.modeBadgeText}>{order.payment_mode}</Text>
+                    </View>
+                  </View>
+
+                  {(order.order_items ?? []).map((item, index) => (
+                    <View key={item.id ?? `${order.id}-item-${index}`} style={styles.productRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.productName} numberOfLines={1}>{getItemName(item)}</Text>
+                        <Text style={styles.productMeta}>Qty {item.quantity ?? 1}</Text>
+                      </View>
+                      <Text style={styles.productAmount}>{toNaira(item.amount ?? item.price ?? item.price_at_purchase)}</Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.summaryGrid}>
+                    <InfoRow label="Total" value={toNaira(order.total_amount)} />
+                    <InfoRow label="Paid" value={toNaira(order.paid_amount)} />
+                    <InfoRow label="Remaining" value={toNaira(order.remaining_balance)} />
+                  </View>
+                </View>
+
+                <View style={styles.bankCard}>
+                  <View style={styles.bankHeader}>
+                    <View style={styles.bankIcon}>
+                      <Ionicons name="business-outline" size={20} color="#C084FC" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.bankTitle}>Bank invoice</Text>
+                      <Text style={styles.bankSubtitle}>{paymentSummary.helper}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.bankRows}>
+                    <InfoRow label="Invoice Type" value={paymentSummary.title} />
+                    <InfoRow label="Payment Label" value={paymentSummary.label} />
+                    <InfoRow label="Invoice Amount" value={toNaira(paymentSummary.amount)} highlight />
+                  </View>
+
+                  {bankDetails ? (
+                    <>
+                      <View style={styles.bankRows}>
+                        <InfoRow label="Bank Name" value={bankDetails.bank_name} />
+                        <InfoRow label="Account Name" value={bankDetails.account_name} />
+                        <InfoRow label="Account Number" value={bankDetails.account_number} />
+                        <InfoRow label="Amount" value={toNaira(bankDetails.amount)} highlight />
+                        <InfoRow label="Invoice Reference" value={bankDetails.reference} highlight />
+                      </View>
+
+                      <View style={styles.noticeBox}>
+                        <Text style={styles.noticeTitle}>Transfer narration</Text>
+                        <Text style={styles.noticeText}>
+                          Use the invoice reference as your transfer narration. Admin will review the bank transfer before updating the order.
+                        </Text>
+                      </View>
+
+                      <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('Orders')}>
+                        <Text style={styles.primaryButtonText}>Return to Orders</Text>
+                      </Pressable>
+                    </>
                   ) : (
-                    <Text style={styles.primaryButtonText}>Get Bank Details</Text>
+                    <Pressable
+                      onPress={handleBankTransfer}
+                      disabled={processing}
+                      style={({ pressed }) => [
+                        styles.primaryButton,
+                        pressed && styles.pressed,
+                        processing && styles.disabled,
+                      ]}
+                    >
+                      {processing ? (
+                        <View style={styles.loadingRow}>
+                          <Spinner small />
+                          <Text style={styles.primaryButtonText}>Creating invoice...</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.primaryButtonText}>Create bank invoice</Text>
+                      )}
+                    </Pressable>
                   )}
-                </Pressable>
-              </View>
-            )}
+                </View>
+              </>
+            ) : null}
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -260,47 +328,97 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 16,
     fontSize: 14,
+    lineHeight: 20,
   },
   errorText: {
     color: '#FCA5A5',
     fontSize: 12,
     marginBottom: 12,
   },
-  amountCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  noticeTextTop: {
+    color: '#34D399',
+    fontSize: 12,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  loadingCard: {
     alignItems: 'center',
+    gap: 10,
+    padding: 24,
     borderRadius: 22,
+    backgroundColor: 'rgba(15,23,42,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.12)',
+  },
+  loadingText: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  orderCard: {
     padding: 16,
+    borderRadius: 22,
     backgroundColor: 'rgba(15,23,42,0.82)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
     marginBottom: 16,
   },
-  amountLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginBottom: 6,
+  orderHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginBottom: 14,
   },
-  amountValue: {
-    color: '#93C5FD',
-    fontSize: 32,
+  cardTitle: {
+    color: colors.textPrimary,
+    fontSize: 17,
     fontWeight: '700',
   },
-  amountHint: {
+  orderId: {
     color: colors.textMuted,
     fontSize: 11,
     marginTop: 4,
   },
-  amountIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: 'rgba(37,99,235,0.12)',
+  modeBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(148,163,184,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.2)',
+    borderColor: 'rgba(148,163,184,0.14)',
+  },
+  modeBadgeText: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  productRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(2,6,23,0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.12)',
+    marginBottom: 10,
+  },
+  productName: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  productMeta: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  productAmount: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  summaryGrid: {
+    gap: 10,
   },
   bankCard: {
     padding: 16,
@@ -338,6 +456,7 @@ const styles = StyleSheet.create({
   },
   bankRows: {
     gap: 10,
+    marginBottom: 12,
   },
   infoRow: {
     padding: 12,
@@ -364,7 +483,7 @@ const styles = StyleSheet.create({
     color: '#93C5FD',
   },
   noticeBox: {
-    marginTop: 14,
+    marginTop: 2,
     padding: 12,
     borderRadius: 16,
     backgroundColor: 'rgba(250,204,21,0.08)',

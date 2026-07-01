@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
-const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops'];
+const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops', 'Vehicles'];
 
 interface FormState {
   name: string;

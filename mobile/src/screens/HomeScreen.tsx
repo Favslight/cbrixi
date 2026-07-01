@@ -254,9 +254,9 @@ export function HomeScreen({ navigation }: Props) {
               <Ionicons name="cart-outline" size={18} color={colors.textSecondary} />
               <Text style={styles.bottomLabel}>Cart</Text>
             </Pressable>
-            <Pressable style={styles.bottomNavItem}>
-              <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Profile</Text>
+            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Orders')}>
+              <Ionicons name="receipt-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.bottomLabel}>Orders</Text>
             </Pressable>
           </View>
         </View>

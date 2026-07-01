@@ -81,13 +81,13 @@ export function FavoritesScreen({ navigation }: Props) {
               <Ionicons name="heart" size={18} color={colors.textPrimary} />
               <Text style={[styles.bottomLabel, styles.bottomLabelActive]}>Wishlist</Text>
             </Pressable>
-            <Pressable style={styles.bottomNavItem}>
+            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Cart')}>
               <Ionicons name="cart-outline" size={18} color={colors.textSecondary} />
               <Text style={styles.bottomLabel}>Cart</Text>
             </Pressable>
-            <Pressable style={styles.bottomNavItem}>
-              <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Profile</Text>
+            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Orders')}>
+              <Ionicons name="receipt-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.bottomLabel}>Orders</Text>
             </Pressable>
           </View>
         </View>

@@ -238,19 +238,16 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
               <View style={styles.installmentBox}>
                 <Text style={styles.installmentTitle}>Installment details</Text>
                 <Text style={styles.installmentText}>
-                  Deposit today: {toNaira(product.priceValue * (product.minimumDepositPercentage / 100))}
+                  Submit your Cbrilliance email at checkout for admin approval before any payment is collected.
                 </Text>
                 <Text style={styles.installmentText}>
-                  Remaining balance: {toNaira(product.priceValue - product.priceValue * (product.minimumDepositPercentage / 100))}
+                  The backend will calculate the exact first deposit, monthly amount, and remaining balance after approval.
                 </Text>
                 <Text style={styles.installmentText}>
                   Minimum wallet balance: {toNaira(product.minimumWalletBalanceRequired)}
                 </Text>
                 <Text style={styles.installmentText}>
                   Default fine: {product.finePercentageOnDefault}% after {product.gracePeriodDays} days grace.
-                </Text>
-                <Text style={styles.installmentText}>
-                  Installment requests must be checked with a valid email at checkout before approval.
                 </Text>
               </View>
             ) : null}

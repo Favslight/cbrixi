@@ -5,6 +5,7 @@ export type RootStackParamList = {
   Signup: undefined;
   Home: undefined;
   Favorites: undefined;
+  Orders: undefined;
   Cart: {
     initialPaymentMode?: 'FULL' | 'INSTALLMENT';
   } | undefined;
@@ -13,7 +14,10 @@ export type RootStackParamList = {
   };
   Payment: {
     orderId: string;
-    total: number;
     mode: 'FULL' | 'INSTALLMENT';
+    action?: 'order' | 'installment' | 'complete';
+    installmentId?: string | null;
+    label?: string;
+    total?: number;
   };
 };

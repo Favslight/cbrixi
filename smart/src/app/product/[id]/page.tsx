@@ -10,24 +10,30 @@ import { formatMoney, getSellingPrice, hasActiveDiscount, toNumber } from '@/lib
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
+const getGalleryImages = (p: any) => {
+  const fallback = p.image_url || p.image || '/images/smartwatch.png';
+  const images = Array.isArray(p.image_urls) && p.image_urls.length ? p.image_urls : [fallback];
+  return images.filter(Boolean).slice(0, 7);
+};
+
 const mapProducts = (list: any[]): Product[] =>
   (list || []).map((p: any) => ({
     ...p,
-    image: p.image_url || p.image || '/images/smartwatch.png',
-    image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 7),
+    image: p.image_url || p.image || getGalleryImages(p)[0] || '/images/smartwatch.png',
+    image_urls: getGalleryImages(p),
     gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
     price: p.price
       ? typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '')
         ? `₦${Number(p.price).toLocaleString()}`
         : p.price.startsWith('₦') ? p.price : `₦${p.price}`
       : '₦N/A',
-    installment_enabled: p.installment_enabled ?? true,
-    installment_duration_months: p.installment_duration_months ?? 12,
-    minimum_deposit_percentage: p.minimum_deposit_percentage ?? 20,
-    fine_percentage_on_default: p.fine_percentage_on_default ?? 5,
-    stock: p.stock ?? 10,
-    minimum_wallet_balance_required: p.minimum_wallet_balance_required ?? 50,
-    grace_period_days: p.grace_period_days ?? 7,
+    installment_enabled: p.installment_enabled === true,
+    installment_duration_months: p.installment_duration_months,
+    minimum_deposit_percentage: p.minimum_deposit_percentage,
+    fine_percentage_on_default: p.fine_percentage_on_default,
+    stock: p.stock ?? 0,
+    minimum_wallet_balance_required: p.minimum_wallet_balance_required,
+    grace_period_days: p.grace_period_days,
   }));
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +43,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [selectedInstallmentMonths, setSelectedInstallmentMonths] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,13 +138,16 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       await fetchAllProducts();
       setLoading(false);
       
-      if (fetchedProduct && fetchedProduct.installment_duration_months) {
-        setSelectedInstallmentMonths(fetchedProduct.installment_duration_months);
-      }
     };
     
     loadProduct();
   }, [id]);
+
+  useEffect(() => {
+    if (!product) return;
+    const primaryIndex = product.image_urls?.findIndex((url) => url === product.image) ?? -1;
+    setActiveImageIndex(primaryIndex >= 0 ? primaryIndex : 0);
+  }, [product?.id, product?.image]);
 
   const showCartNotice = (notice: { type: 'success' | 'error'; message: string }) => {
     setCartNotice(notice);
@@ -231,7 +239,16 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const similarProducts = allProducts.filter(p => p.category === product?.category && p.id !== product?.id).slice(0, 5);
   const otherProducts = allProducts.filter(p => p.id !== product?.id).sort(() => Math.random() - 0.5).slice(0, 5);
 
-  const installmentAmount = product ? toNumber(getSellingPrice(product)) / (selectedInstallmentMonths || product.installment_duration_months || 1) : 0;
+  const depositPercent = product ? toNumber(product.minimum_deposit_percentage) : 0;
+  const installmentMonths = product ? toNumber(product.installment_duration_months) : 0;
+  const installmentPrice = product ? toNumber(product.effective_price ?? product.discounted_price ?? product.price) : 0;
+  const canShowInstallment =
+    product?.installment_enabled === true
+    && Number.isFinite(depositPercent)
+    && depositPercent > 0
+    && Number.isFinite(installmentMonths)
+    && installmentMonths > 0;
+  const firstPayment = canShowInstallment ? Math.round((installmentPrice * depositPercent) / 100) : null;
 
   if (loading) {
     return (
@@ -520,12 +537,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           {/* Left - Images */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="relative aspect-square bg-[#111116] rounded-2xl overflow-hidden">
-              <div className={`absolute inset-0 bg-gradient-to-br ${product.gradient} opacity-20`} />
+            <div className="relative min-h-[320px] bg-white rounded-2xl overflow-hidden flex items-center justify-center">
               <img
                 src={product.image_urls?.[activeImageIndex] || product.image}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className="max-w-full max-h-[520px] w-auto h-auto object-contain"
               />
               
               {/* Image Navigation */}
@@ -562,11 +578,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   <button
                     key={idx}
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${
+                    className={`flex-shrink-0 w-20 aspect-square rounded-xl overflow-hidden border-2 bg-white flex items-center justify-center transition-all ${
                       activeImageIndex === idx ? 'border-blue-500' : 'border-white/10 hover:border-white/30'
                     }`}
                   >
-                    <img src={img} alt={`${product.name} view ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} alt={`${product.name} view ${idx + 1}`} className="max-w-full max-h-full w-auto h-auto object-contain" />
                   </button>
                 ))}
               </div>
@@ -596,30 +612,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
 
               {/* Installment Info */}
-              {product.installment_enabled && (
+              {canShowInstallment ? (
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
                   <p className="text-sm text-white/60 mb-2">Pay in installments</p>
-                  <div className="flex items-baseline gap-2 mb-3">
-                    <span className="text-2xl font-bold text-blue-300">{formatMoney(installmentAmount)}</span>
-                    <span className="text-white/40">for {selectedInstallmentMonths || product.installment_duration_months} months</span>
+                  <div className="space-y-2">
+                    <p className="text-lg font-bold text-blue-300">
+                      First payment: {formatMoney(firstPayment)} ({depositPercent}%)
+                    </p>
+                    <p className="text-white/60">Duration: {installmentMonths} months</p>
                   </div>
-                  
-                  {/* Installment Duration Options */}
-                  <div className="flex flex-wrap gap-2">
-                    {[6, 8, 12, 18].filter(m => m <= (product.installment_duration_months || 12)).map((months) => (
-                      <button
-                        key={months}
-                        onClick={() => setSelectedInstallmentMonths(months)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          selectedInstallmentMonths === months
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-white/5 text-white/60 hover:bg-white/10'
-                        }`}
-                      >
-                        {months} months
-                      </button>
-                    ))}
-                  </div>
+                </div>
+              ) : (
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-sm text-white/55">
+                  Installment unavailable
                 </div>
               )}
 
@@ -651,7 +656,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   Buy Now
                 </button>
 
-                {product.installment_enabled && (
+                {canShowInstallment && (
                   <button
                     onClick={handleBuyInInstallment}
                     disabled={addingToCart}
@@ -687,23 +692,32 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <p className="text-sm text-white/40 mb-1">Category</p>
                 <p className="font-medium text-white">{product.category}</p>
               </div>
-              {product.installment_enabled && (
+              {canShowInstallment ? (
                 <>
                   <div>
                     <p className="text-sm text-white/40 mb-1">Installment Duration</p>
-                    <p className="font-medium text-white">{product.installment_duration_months} months</p>
+                    <p className="font-medium text-white">{installmentMonths} months</p>
                   </div>
                   <div>
                     <p className="text-sm text-white/40 mb-1">Min Deposit</p>
-                    <p className="font-medium text-white">{product.minimum_deposit_percentage}%</p>
+                    <p className="font-medium text-white">{depositPercent}%</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-white/40 mb-1">First Payment</p>
+                    <p className="font-medium text-white">{formatMoney(firstPayment)}</p>
                   </div>
                 </>
+              ) : (
+                <div>
+                  <p className="text-sm text-white/40 mb-1">Installment</p>
+                  <p className="font-medium text-white">Unavailable</p>
+                </div>
               )}
             </div>
             
             <div className="mt-6 pt-6 border-t border-white/10">
               <p className="text-sm text-white/40 mb-2">Description</p>
-              <p className="text-white/70 leading-relaxed">{product.description}</p>
+              <section className="text-white/70 leading-relaxed whitespace-pre-line">{product.description}</section>
             </div>
           </div>
         </div>
@@ -719,8 +733,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   href={`/product/${p.id}`}
                   className="flex-shrink-0 w-48 bg-[#111116] border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors"
                 >
-                  <div className="aspect-square bg-white/5">
-                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                  <div className="aspect-square bg-white flex items-center justify-center">
+                    <img src={p.image} alt={p.name} className="max-w-full max-h-full w-auto h-auto object-contain" />
                   </div>
                   <div className="p-4">
                     <p className="text-sm font-medium text-white truncate mb-2">{p.name}</p>
@@ -746,8 +760,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   href={`/product/${p.id}`}
                   className="flex-shrink-0 w-48 bg-[#111116] border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors"
                 >
-                  <div className="aspect-square bg-white/5">
-                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                  <div className="aspect-square bg-white flex items-center justify-center">
+                    <img src={p.image} alt={p.name} className="max-w-full max-h-full w-auto h-auto object-contain" />
                   </div>
                   <div className="p-4">
                     <p className="text-sm font-medium text-white truncate mb-2">{p.name}</p>

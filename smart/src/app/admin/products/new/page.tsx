@@ -19,13 +19,13 @@ interface FormState {
   imagePreviews: string[];
   thumbnailIndex: number;
   category: string;
-  minimum_deposit_percentage: number;
-  installment_duration_months: number;
-  fine_percentage_on_default: number;
-  stock: number;
+  minimum_deposit_percentage: string;
+  installment_duration_months: string;
+  fine_percentage_on_default: string;
+  stock: string;
   installment_enabled: boolean;
-  minimum_wallet_balance_required: number;
-  grace_period_days: number;
+  minimum_wallet_balance_required: string;
+  grace_period_days: string;
 }
 
 export default function NewProduct() {
@@ -40,13 +40,13 @@ export default function NewProduct() {
     imagePreviews: [],
     thumbnailIndex: 0,
     category: 'Smart Watches',
-    minimum_deposit_percentage: 20,
-    installment_duration_months: 12,
-    fine_percentage_on_default: 5,
-    stock: 1,
-    installment_enabled: true,
-    minimum_wallet_balance_required: 50,
-    grace_period_days: 7,
+    minimum_deposit_percentage: '',
+    installment_duration_months: '',
+    fine_percentage_on_default: '',
+    stock: '',
+    installment_enabled: false,
+    minimum_wallet_balance_required: '',
+    grace_period_days: '',
   });
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -60,11 +60,7 @@ export default function NewProduct() {
       ...prev,
       [name]: type === 'checkbox'
         ? (e.target as HTMLInputElement).checked
-        : name === 'discount_percentage'
-          ? value
-          : type === 'number'
-            ? Number(value)
-            : value
+        : value
     }));
     setError('');
   };
@@ -73,7 +69,7 @@ export default function NewProduct() {
     const price = toNumber(form.price);
     const percentage = toNumber(form.discount_percentage);
 
-    if (!form.price.toString().trim() || price <= 0) {
+    if (!form.price.trim() || price <= 0) {
       setPreviewLoading(false);
       setDiscountPreview(null);
       return;
@@ -180,9 +176,17 @@ export default function NewProduct() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price.toString().trim() || !form.description.trim() || form.images.length === 0) {
+    if (!form.name.trim() || !form.price.trim() || !form.stock.trim() || !form.description.trim() || form.images.length === 0) {
       setError('Please fill in all required fields and upload at least one image.');
       return;
+    }
+    if (form.installment_enabled) {
+      const depositPercent = toNumber(form.minimum_deposit_percentage);
+      const months = toNumber(form.installment_duration_months);
+      if (depositPercent <= 0 || depositPercent > 100 || months <= 0) {
+        setError('Enter a valid installment deposit percentage and duration.');
+        return;
+      }
     }
     if (form.discount_enabled) {
       const percentage = toNumber(form.discount_percentage);
@@ -197,20 +201,22 @@ export default function NewProduct() {
 
       const formData = new FormData();
       formData.append('name', form.name);
-      formData.append('price', form.price.toString());
+      formData.append('price', form.price);
       formData.append('discount_enabled', String(form.discount_enabled));
       if (form.discount_enabled) {
-        formData.append('discount_percentage', form.discount_percentage.toString());
+        formData.append('discount_percentage', form.discount_percentage);
       }
       formData.append('description', form.description);
       formData.append('category', form.category);
-      formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage.toString());
-      formData.append('installment_duration_months', form.installment_duration_months.toString());
-      formData.append('fine_percentage_on_default', form.fine_percentage_on_default.toString());
-      formData.append('stock', form.stock.toString());
+      formData.append('stock', form.stock);
       formData.append('installment_enabled', form.installment_enabled.toString());
-      formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required.toString());
-      formData.append('grace_period_days', form.grace_period_days.toString());
+      if (form.installment_enabled) {
+        formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage);
+        formData.append('installment_duration_months', form.installment_duration_months);
+        formData.append('fine_percentage_on_default', form.fine_percentage_on_default || '0');
+        formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required || '0');
+        formData.append('grace_period_days', form.grace_period_days || '0');
+      }
       formData.append('thumbnail_index', String(form.thumbnailIndex));
 
       form.images.forEach((image) => {
@@ -328,27 +334,9 @@ export default function NewProduct() {
             rows={4} className={`${inputClass} resize-none`} required />
         </div>
 
-        {/* Minimum Deposit Percentage */}
-        <div>
-          <label className={labelClass}>Minimum Deposit Percentage (%)</label>
-          <input name="minimum_deposit_percentage" type="number" value={form.minimum_deposit_percentage} onChange={handleChange} placeholder="e.g. 20" className={inputClass} min="0" max="100" />
-        </div>
-
-        {/* Installment Duration Months */}
-        <div>
-          <label className={labelClass}>Installment Duration (Months)</label>
-          <input name="installment_duration_months" type="number" value={form.installment_duration_months} onChange={handleChange} placeholder="e.g. 12" className={inputClass} min="1" />
-        </div>
-
-        {/* Fine Percentage on Default */}
-        <div>
-          <label className={labelClass}>Fine Percentage on Default (%)</label>
-          <input name="fine_percentage_on_default" type="number" value={form.fine_percentage_on_default} onChange={handleChange} placeholder="e.g. 5" className={inputClass} min="0" />
-        </div>
-
         {/* Stock */}
         <div>
-          <label className={labelClass}>Stock Quantity</label>
+          <label className={labelClass}>Stock Quantity <span className="text-red-400">*</span></label>
           <input name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="e.g. 50" className={inputClass} min="0" />
         </div>
 
@@ -360,17 +348,30 @@ export default function NewProduct() {
           </label>
         </div>
 
-        {/* Minimum Wallet Balance Required */}
-        <div>
-          <label className={labelClass}>Minimum Wallet Balance Required</label>
-          <input name="minimum_wallet_balance_required" type="number" value={form.minimum_wallet_balance_required} onChange={handleChange} placeholder="e.g. 50" className={inputClass} min="0" />
-        </div>
-
-        {/* Grace Period Days */}
-        <div>
-          <label className={labelClass}>Grace Period (Days)</label>
-          <input name="grace_period_days" type="number" value={form.grace_period_days} onChange={handleChange} placeholder="e.g. 7" className={inputClass} min="0" />
-        </div>
+        {form.installment_enabled && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+            <div>
+              <label className={labelClass}>Minimum Deposit Percentage (%) <span className="text-red-400">*</span></label>
+              <input name="minimum_deposit_percentage" type="number" value={form.minimum_deposit_percentage} onChange={handleChange} placeholder="e.g. 30" className={inputClass} min="0" max="100" />
+            </div>
+            <div>
+              <label className={labelClass}>Installment Duration (Months) <span className="text-red-400">*</span></label>
+              <input name="installment_duration_months" type="number" value={form.installment_duration_months} onChange={handleChange} placeholder="e.g. 6" className={inputClass} min="1" />
+            </div>
+            <div>
+              <label className={labelClass}>Fine Percentage on Default (%)</label>
+              <input name="fine_percentage_on_default" type="number" value={form.fine_percentage_on_default} onChange={handleChange} placeholder="e.g. 5" className={inputClass} min="0" />
+            </div>
+            <div>
+              <label className={labelClass}>Minimum Wallet Balance Required</label>
+              <input name="minimum_wallet_balance_required" type="number" value={form.minimum_wallet_balance_required} onChange={handleChange} placeholder="e.g. 50" className={inputClass} min="0" />
+            </div>
+            <div>
+              <label className={labelClass}>Grace Period (Days)</label>
+              <input name="grace_period_days" type="number" value={form.grace_period_days} onChange={handleChange} placeholder="e.g. 7" className={inputClass} min="0" />
+            </div>
+          </div>
+        )}
 
         {/* Image Upload */}
         <div>
@@ -382,7 +383,7 @@ export default function NewProduct() {
               {form.imagePreviews.map((preview, index) => (
                 <div key={preview} className="relative rounded-xl border border-white/10 bg-white/5 p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-24 object-cover rounded-lg bg-white/5" />
+                  <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-24 object-contain rounded-lg bg-white" />
                   {form.thumbnailIndex === index && <span className="absolute top-3 left-3 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
                   <div className="mt-2 flex items-center justify-between gap-1">
                     <button type="button" onClick={() => moveImage(index, -1)} disabled={index === 0} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Up</button>

@@ -7,31 +7,6 @@ import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 import { useRouter } from 'next/navigation';
 import CbrixiLogo from './CbrixiLogo';
 
-const getDescriptionParagraphs = (description: string) => {
-  const normalized = description.replace(/\r\n/g, '\n').trim();
-  const paragraphs = normalized
-    .split(/\n\s*\n|\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-
-  if (paragraphs.length > 1) {
-    return paragraphs;
-  }
-
-  const sentences = normalized.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)?.map((sentence) => sentence.trim()).filter(Boolean) ?? [];
-
-  if (sentences.length <= 2) {
-    return normalized ? [normalized] : [];
-  }
-
-  const groupedSentences: string[] = [];
-  for (let index = 0; index < sentences.length; index += 2) {
-    groupedSentences.push(sentences.slice(index, index + 2).join(' '));
-  }
-
-  return groupedSentences;
-};
-
 function ProductPrice({ product, variant = 'card' }: { product: Product; variant?: 'card' | 'modal' }) {
   const discounted = hasActiveDiscount(product);
   const isModal = variant === 'modal';
@@ -488,8 +463,8 @@ export default function Marketplace() {
                 onClick={() => router.push(`/product/${product.id}`)}
                 className="cursor-pointer flex flex-col items-center bg-transparent"
               >
-                <div className="w-full aspect-[4/5] bg-gray-100 dark:bg-[#111116] overflow-hidden relative">
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                <div className="w-full aspect-[4/5] bg-white overflow-hidden relative flex items-center justify-center">
+                  <img src={product.image} alt={product.name} className="max-w-full max-h-full w-auto h-auto object-contain" />
                 </div>
                 <div className="py-4 text-center w-full px-2 bg-gray-900 dark:bg-white transition-colors">
                   <h3 className="text-[15px] font-bold text-white dark:text-gray-900 mb-1">{product.name}</h3>
@@ -521,7 +496,7 @@ export default function Marketplace() {
               </button>
 
               <div className="flex flex-col w-full flex-1 overflow-y-auto">
-                <div className="relative flex-shrink-0 h-[58vh] min-h-[360px] sm:h-[66vh] lg:h-[72vh] flex items-center justify-center bg-[#07070a] overflow-hidden">
+                <div className="relative flex-shrink-0 h-[58vh] min-h-[360px] sm:h-[66vh] lg:h-[72vh] flex items-center justify-center bg-white overflow-hidden">
                   <div className={`absolute inset-0 bg-gradient-to-br ${selectedProduct.gradient} opacity-20`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
                   
@@ -534,7 +509,7 @@ export default function Marketplace() {
                     <img 
                       src={selectedProduct.image_urls?.[activeImageIndex] || selectedProduct.image} 
                       alt={selectedProduct.name} 
-                      className="absolute inset-0 z-10 w-full h-full object-cover object-center" 
+                      className="absolute inset-0 z-10 m-auto max-w-full max-h-full w-auto h-auto object-contain" 
                       draggable={false}
                     />
                     
@@ -601,11 +576,9 @@ export default function Marketplace() {
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5 max-w-5xl">
                       <p className="text-xs font-semibold uppercase text-white/35 mb-3">Description</p>
-                      {getDescriptionParagraphs(selectedProduct.description).map((paragraph, index) => (
-                        <p key={index} className="text-white/68 text-base sm:text-lg leading-8 mt-3 first:mt-0">
-                          {paragraph}
-                        </p>
-                      ))}
+                      <section className="text-white/68 text-base sm:text-lg leading-8 whitespace-pre-line">
+                        {selectedProduct.description}
+                      </section>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button

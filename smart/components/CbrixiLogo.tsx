@@ -1,75 +1,55 @@
 import { motion } from 'framer-motion';
 
 interface CbrixiLogoProps {
-  /** Size of the icon square in pixels (default 32) */
+  /** Height of the logo image in pixels (default 32). */
   size?: number;
-  /** Extra classes on the outer wrapper */
+  /** Extra classes on the outer wrapper. */
   className?: string;
-  /** Whether to animate on hover (default true) */
+  /** Whether to animate on hover (default true). */
   animate?: boolean;
-  /** Text size class, e.g. 'text-xl' (default 'text-xl') */
+  /** Kept for backwards compatibility with older call sites. */
   textSize?: string;
 }
 
 /**
  * The single source-of-truth CBRIXI logo.
- *
- * Icon: stacked-layers SVG inside a blue→purple gradient square.
- * Wordmark: "CBRI" white + "XI" blue-400, Space Grotesk bold, tracked-widest.
- *
- * Used in: Navbar, Footer, Auth layout, Admin sidebar.
  */
 export default function CbrixiLogo({
   size = 32,
   className = '',
   animate = true,
-  textSize = 'text-xl',
+  textSize: _textSize = 'text-xl',
 }: CbrixiLogoProps) {
-  const iconSize = size * 1.4;
+  const logoHeight = Math.max(size, 24);
+  const logoWidth = logoHeight * 4.35;
 
   const Wrapper = animate ? motion.a : 'a';
   const wrapperProps = animate
-    ? { whileHover: { scale: 1.03 }, href: '/' }
+    ? { whileHover: { scale: 1.03, y: -1 }, href: '/' }
     : { href: '/' };
 
   return (
     <Wrapper
       {...(wrapperProps as any)}
-      className={`flex items-center gap-2.5 group ${className}`}
+      aria-label="CBRIXI home"
+      className={`group relative inline-flex items-center ${className}`}
     >
-      {/* Logo icon — uses the uploaded logo.jpg
-          Technique: The image (dark logo on white bg) is inverted so the logo
-          becomes white and the bg becomes black. Then rendered on a black
-          container with overflow hidden. The whole container uses
-          mix-blend-mode: screen so black = invisible, white logo = visible. */}
       <div
-        style={{ 
-          width: iconSize, 
-          height: iconSize,
-          mixBlendMode: 'screen',
-          background: '#000',
-          borderRadius: 6,
-          overflow: 'hidden',
+        className="relative rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500 p-[1px] shadow-lg shadow-blue-500/20 transition-shadow duration-300 group-hover:shadow-cyan-400/25"
+        style={{
+          width: logoWidth,
+          height: logoHeight + 8,
         }}
-        className="flex-shrink-0 flex items-center justify-center"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.jpg"
-          alt="CBRIXI"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            filter: 'invert(1)',
-          }}
-        />
+        <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[11px] bg-white px-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/CBRIXI LOGO.png"
+            alt="CBRIXI"
+            className="block h-full w-full object-contain"
+          />
+        </div>
       </div>
-
-      {/* Wordmark */}
-      <span className={`${textSize} font-extrabold tracking-widest text-white leading-none`}>
-        CBRIXI
-      </span>
     </Wrapper>
   );
 }

@@ -22,6 +22,12 @@ interface EditFormState {
   description: string;
   category: string;
   stock: string;
+  installment_enabled: boolean;
+  minimum_deposit_percentage: string;
+  installment_duration_months: string;
+  fine_percentage_on_default: string;
+  minimum_wallet_balance_required: string;
+  grace_period_days: string;
   existingImages: ExistingProductImage[];
   newImages: File[];
   newImagePreviews: string[];
@@ -42,6 +48,12 @@ export default function EditProductPage() {
     description: '',
     category: 'Smart Watches',
     stock: '',
+    installment_enabled: false,
+    minimum_deposit_percentage: '',
+    installment_duration_months: '',
+    fine_percentage_on_default: '',
+    minimum_wallet_balance_required: '',
+    grace_period_days: '',
     existingImages: [],
     newImages: [],
     newImagePreviews: [],
@@ -91,6 +103,12 @@ export default function EditProductPage() {
           description: String(product.description ?? ''),
           category: String(product.category ?? 'Smart Watches'),
           stock: String(product.stock ?? ''),
+          installment_enabled: product.installment_enabled === true,
+          minimum_deposit_percentage: String(product.minimum_deposit_percentage ?? ''),
+          installment_duration_months: String(product.installment_duration_months ?? ''),
+          fine_percentage_on_default: String(product.fine_percentage_on_default ?? ''),
+          minimum_wallet_balance_required: String(product.minimum_wallet_balance_required ?? ''),
+          grace_period_days: String(product.grace_period_days ?? ''),
           existingImages,
           newImages: [],
           newImagePreviews: [],
@@ -278,6 +296,14 @@ export default function EditProductPage() {
         return;
       }
     }
+    if (form.installment_enabled) {
+      const depositPercent = toNumber(form.minimum_deposit_percentage);
+      const months = toNumber(form.installment_duration_months);
+      if (depositPercent <= 0 || depositPercent > 100 || months <= 0) {
+        setError('Enter a valid installment deposit percentage and duration.');
+        return;
+      }
+    }
     const finalImageCount = form.existingImages.length + form.newImages.length;
     if (finalImageCount < 1 || finalImageCount > MAX_PRODUCT_IMAGES) {
       setError(`A product must have between 1 and ${MAX_PRODUCT_IMAGES} images.`);
@@ -298,6 +324,14 @@ export default function EditProductPage() {
       formData.append('description', form.description);
       formData.append('category', form.category);
       if (form.stock.trim() !== '') formData.append('stock', form.stock);
+      formData.append('installment_enabled', String(form.installment_enabled));
+      if (form.installment_enabled) {
+        formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage);
+        formData.append('installment_duration_months', form.installment_duration_months);
+        formData.append('fine_percentage_on_default', form.fine_percentage_on_default || '0');
+        formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required || '0');
+        formData.append('grace_period_days', form.grace_period_days || '0');
+      }
       formData.append('images_manifest', JSON.stringify(form.existingImages));
       formData.append('thumbnail_index', String(form.thumbnailIndex));
       form.newImages.forEach((image) => {
@@ -422,6 +456,38 @@ export default function EditProductPage() {
         </div>
 
         <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-white/70">
+            <input name="installment_enabled" type="checkbox" checked={form.installment_enabled} onChange={handleChange} className="rounded" />
+            Enable Installments
+          </label>
+        </div>
+
+        {form.installment_enabled && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+            <div>
+              <label className={labelClass}>Minimum Deposit Percentage (%) <span className="text-red-400">*</span></label>
+              <input name="minimum_deposit_percentage" type="number" value={form.minimum_deposit_percentage} onChange={handleChange} placeholder="e.g. 30" className={inputClass} min="0" max="100" />
+            </div>
+            <div>
+              <label className={labelClass}>Installment Duration (Months) <span className="text-red-400">*</span></label>
+              <input name="installment_duration_months" type="number" value={form.installment_duration_months} onChange={handleChange} placeholder="e.g. 6" className={inputClass} min="1" />
+            </div>
+            <div>
+              <label className={labelClass}>Fine Percentage on Default (%)</label>
+              <input name="fine_percentage_on_default" type="number" value={form.fine_percentage_on_default} onChange={handleChange} placeholder="e.g. 5" className={inputClass} min="0" />
+            </div>
+            <div>
+              <label className={labelClass}>Minimum Wallet Balance Required</label>
+              <input name="minimum_wallet_balance_required" type="number" value={form.minimum_wallet_balance_required} onChange={handleChange} placeholder="e.g. 50" className={inputClass} min="0" />
+            </div>
+            <div>
+              <label className={labelClass}>Grace Period (Days)</label>
+              <input name="grace_period_days" type="number" value={form.grace_period_days} onChange={handleChange} placeholder="e.g. 7" className={inputClass} min="0" />
+            </div>
+          </div>
+        )}
+
+        <div>
           <label className={labelClass}>Product Images (1 to 7)</label>
           <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" />
           <p className="text-xs text-white/40 mt-2">Existing images are kept in this order. New uploads are appended after them.</p>
@@ -429,7 +495,7 @@ export default function EditProductPage() {
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {form.existingImages.map((image, index) => (
                 <div key={`${image.url}-${index}`} className="relative rounded-xl border border-white/10 bg-white/5 p-2">
-                  <img src={image.url} alt={`Existing image ${index + 1}`} className="w-full h-24 object-cover rounded-lg bg-white/5" />
+                  <img src={image.url} alt={`Existing image ${index + 1}`} className="w-full h-24 object-contain rounded-lg bg-white" />
                   {form.thumbnailIndex === index && <span className="absolute top-3 left-3 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
                   <div className="mt-2 flex items-center justify-between gap-1">
                     <button type="button" onClick={() => moveExistingImage(index, -1)} disabled={index === 0} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Up</button>
@@ -453,7 +519,7 @@ export default function EditProductPage() {
                   const absoluteIndex = form.existingImages.length + index;
                   return (
                     <div key={`${preview}-${index}`} className="relative rounded-xl border border-white/10 bg-white/5 p-2">
-                      <img src={preview} alt={`New upload ${index + 1}`} className="w-full h-24 object-cover rounded-lg bg-white/5" />
+                      <img src={preview} alt={`New upload ${index + 1}`} className="w-full h-24 object-contain rounded-lg bg-white" />
                       {form.thumbnailIndex === absoluteIndex && <span className="absolute top-3 left-3 text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white">Thumb</span>}
                       <div className="mt-2 flex items-center justify-between gap-1">
                         <button type="button" onClick={() => moveNewImage(index, -1)} disabled={index === 0} className="px-2 py-1 rounded-lg bg-white/8 text-white/70 disabled:opacity-30">Up</button>

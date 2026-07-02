@@ -151,7 +151,7 @@ export default function AdminProductsPage() {
                           <img
                             src={getProductImage(product)}
                             alt={product.name}
-                            className="w-12 h-12 object-cover rounded-lg"
+                            className="w-12 h-12 object-contain rounded-lg bg-white"
                           />
                           <div>
                             <span className="font-medium">{product.name}</span>

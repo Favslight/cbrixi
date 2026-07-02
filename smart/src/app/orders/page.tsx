@@ -15,7 +15,10 @@ interface OrderLine {
   product_name?: string;
   quantity?: number;
   price?: string | number;
+  price_at_purchase?: string | number;
   amount?: string | number;
+  variant_name?: string | null;
+  variant_specs?: Record<string, unknown> | null;
 }
 
 interface InstallmentLine {
@@ -411,8 +414,12 @@ function OrderCard({
                 items={(order.order_items ?? []).map((item, index) => ({
                   key: item.id ?? `${order.id}-item-${index}`,
                   primary: item.name ?? item.product_name ?? "Product",
-                  secondary: `Qty ${item.quantity ?? 1}`,
-                  amount: item.amount ?? item.price,
+                  secondary: [
+                    item.variant_name,
+                    item.variant_specs ? Object.entries(item.variant_specs).map(([key, value]) => `${key}: ${value}`).join(" · ") : null,
+                    `Qty ${item.quantity ?? 1}`,
+                  ].filter(Boolean).join(" · "),
+                  amount: item.price_at_purchase ?? item.amount ?? item.price,
                 }))}
               />
               <InstallmentSchedule

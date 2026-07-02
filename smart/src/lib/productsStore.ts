@@ -1,5 +1,17 @@
 import type { ProductDiscountFields } from './pricing';
 
+export interface ProductVariant extends ProductDiscountFields {
+  id: string;
+  product_id?: string;
+  name: string;
+  specs?: Record<string, string | number | boolean>;
+  sku?: string | null;
+  stock: number;
+  is_default?: boolean;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
 export interface Product extends ProductDiscountFields {
   id: string;
   name: string;
@@ -18,6 +30,12 @@ export interface Product extends ProductDiscountFields {
   image_public_id?: string;
   image_urls?: string[];
   image_public_ids?: string[];
+  image_url?: string | null;
+  has_variants?: boolean;
+  default_variant_id?: string | null;
+  variant_price_min?: string | number;
+  variant_price_max?: string | number;
+  variants?: ProductVariant[];
 }
 
 // In-memory product store for the admin dashboard.

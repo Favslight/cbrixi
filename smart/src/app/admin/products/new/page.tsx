@@ -9,6 +9,16 @@ import { DiscountPreview, formatMoney, toNumber } from '@/lib/pricing';
 const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops', 'Vehicles'];
 const MAX_PRODUCT_IMAGES = 7;
 
+interface ProductVariantForm {
+  name: string;
+  ram: string;
+  rom: string;
+  color: string;
+  sku: string;
+  price: string;
+  stock: string;
+}
+
 interface FormState {
   name: string;
   price: string;
@@ -26,6 +36,7 @@ interface FormState {
   installment_enabled: boolean;
   minimum_wallet_balance_required: string;
   grace_period_days: string;
+  variants: ProductVariantForm[];
 }
 
 export default function NewProduct() {
@@ -47,6 +58,7 @@ export default function NewProduct() {
     installment_enabled: false,
     minimum_wallet_balance_required: '',
     grace_period_days: '',
+    variants: [],
   });
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -174,11 +186,37 @@ export default function NewProduct() {
     });
   };
 
+  const addVariant = () => setForm((prev) => ({ ...prev, variants: [...prev.variants, { name: '', ram: '', rom: '', color: '', sku: '', price: '', stock: '' }] }));
+
+  const updateVariant = (index: number, field: keyof ProductVariantForm, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((variant, variantIndex) => variantIndex === index ? { ...variant, [field]: value } : variant),
+    }));
+  };
+
+  const removeVariant = (index: number) => setForm((prev) => ({ ...prev, variants: prev.variants.filter((_, variantIndex) => variantIndex !== index) }));
+
+  const buildVariantsPayload = () => form.variants.map((variant) => ({
+    name: variant.name.trim(),
+    specs: Object.fromEntries(Object.entries({ ram: variant.ram, rom: variant.rom, color: variant.color }).filter(([, value]) => value.trim() !== '')),
+    price: toNumber(variant.price),
+    stock: toNumber(variant.stock),
+    ...(variant.sku.trim() ? { sku: variant.sku.trim() } : {}),
+  }));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.price.trim() || !form.stock.trim() || !form.description.trim() || form.images.length === 0) {
       setError('Please fill in all required fields and upload at least one image.');
       return;
+    }
+    if (form.variants.length > 0) {
+      const invalidVariant = form.variants.some((variant) => !variant.name.trim() || toNumber(variant.price) <= 0 || toNumber(variant.stock) < 0);
+      if (invalidVariant) {
+        setError('Every variant needs a name, valid price, and stock value.');
+        return;
+      }
     }
     if (form.installment_enabled) {
       const depositPercent = toNumber(form.minimum_deposit_percentage);
@@ -209,6 +247,9 @@ export default function NewProduct() {
       formData.append('description', form.description);
       formData.append('category', form.category);
       formData.append('stock', form.stock);
+      if (form.variants.length > 0) {
+        formData.append('variants', JSON.stringify(buildVariantsPayload()));
+      }
       formData.append('installment_enabled', form.installment_enabled.toString());
       if (form.installment_enabled) {
         formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage);
@@ -338,6 +379,37 @@ export default function NewProduct() {
         <div>
           <label className={labelClass}>Stock Quantity <span className="text-red-400">*</span></label>
           <input name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="e.g. 50" className={inputClass} min="0" />
+        </div>
+
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white/80">Product Variants</h2>
+              <p className="text-xs text-white/40">Add RAM, ROM, color, SKU, price, and stock options without duplicating products.</p>
+            </div>
+            <button type="button" onClick={addVariant} className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600">Add variant</button>
+          </div>
+          {form.variants.length === 0 && <p className="text-xs text-white/45">No variants added. The backend will create/use the default variant from product price and stock.</p>}
+          {form.variants.map((variant, index) => (
+            <div key={index} className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/50">Variant {index + 1}{index === 0 ? ' · default' : ''}</span>
+                <button type="button" onClick={() => removeVariant(index)} className="text-xs text-red-300 hover:text-red-200">Remove</button>
+              </div>
+              <input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} placeholder="Name e.g. 4GB RAM / 128GB ROM" className={inputClass} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <input value={variant.ram} onChange={(event) => updateVariant(index, 'ram', event.target.value)} placeholder="RAM" className={inputClass} />
+                <input value={variant.rom} onChange={(event) => updateVariant(index, 'rom', event.target.value)} placeholder="ROM/Storage" className={inputClass} />
+                <input value={variant.color} onChange={(event) => updateVariant(index, 'color', event.target.value)} placeholder="Color" className={inputClass} />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <input value={variant.price} onChange={(event) => updateVariant(index, 'price', event.target.value)} placeholder="Variant price" className={inputClass} />
+                <input value={variant.stock} onChange={(event) => updateVariant(index, 'stock', event.target.value)} placeholder="Stock" type="number" min="0" className={inputClass} />
+                <input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} placeholder="SKU" className={inputClass} />
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Installment Enabled */}

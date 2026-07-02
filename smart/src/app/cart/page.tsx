@@ -12,6 +12,10 @@ interface CartItem {
     id: string; // cartitem ID
     cart_item_id?: string;
     product_id: string;
+    variant_id?: string;
+    variant_name?: string;
+    variant_specs?: Record<string, string | number | boolean>;
+    variant_sku?: string | null;
     quantity: number;
     name: string;
     price: string | number;
@@ -25,6 +29,7 @@ interface CartItem {
     installment_duration_months: number;
     minimum_deposit_percentage: number;
     minimum_wallet_balance_required: number;
+    stock?: number;
 }
 
 export default function CartPage() {
@@ -234,6 +239,15 @@ export default function CartPage() {
                                             <Link href={`/marketplace`} className="text-xl font-bold hover:text-blue-400 transition-colors">
                                                 {item.name}
                                             </Link>
+                                            {item.variant_name && item.variant_name !== 'Default' && (
+                                                <p className="mt-1 text-sm text-blue-200">{item.variant_name}</p>
+                                            )}
+                                            {item.variant_specs && Object.keys(item.variant_specs).length > 0 && (
+                                                <p className="mt-1 text-xs text-white/45">
+                                                    {Object.entries(item.variant_specs).map(([key, value]) => `${key}: ${value}`).join(' · ')}
+                                                </p>
+                                            )}
+                                            {item.variant_sku && <p className="mt-1 text-xs text-white/35">SKU: {item.variant_sku}</p>}
                                             <div className="mt-1">
                                                 <p className="text-2xl font-semibold text-white/90">{formatMoney(getCartUnitPrice(item))}</p>
                                                 {hasActiveDiscount(item) && (

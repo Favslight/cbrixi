@@ -20,6 +20,8 @@ interface OrderItem {
     price: string;
     quantity: number;
     price_at_purchase: string;
+    variant_name?: string | null;
+    variant_specs?: Record<string, unknown> | null;
     installment_duration_months: number;
 }
 
@@ -289,7 +291,7 @@ export default function AdminUsersPage() {
                                                                                             <div className="space-y-2">
                                                                                                 {order.order_items.map(item => (
                                                                                                     <div key={item.id} className="flex items-center justify-between text-sm bg-white/3 rounded-lg px-3 py-2 border border-white/6">
-                                                                                                        <span className="font-medium">{item.name}</span>
+                                                                                                        <span className="font-medium">{item.name}{item.variant_name ? ` (${item.variant_name})` : ""}</span>
                                                                                                         <div className="flex items-center gap-4 text-white/60">
                                                                                                             <span>×{item.quantity}</span>
                                                                                                             <span className="text-white font-semibold">{fmt(item.price_at_purchase)}</span>

@@ -48,12 +48,19 @@ export default function Marketplace() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
+  const getActiveVariants = (p: any) => (Array.isArray(p.variants) ? p.variants : []).filter((variant: any) => variant && variant.is_active !== false);
+
   const mapProducts = (list: any[]): Product[] =>
     (list || []).map((p: any) => ({
       ...p,
       image: p.image_url || p.image || '/images/smartwatch.png',
       image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 7),
       gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
+      variants: getActiveVariants(p),
+      has_variants: p.has_variants === true || getActiveVariants(p).length > 1,
+      default_variant_id: p.default_variant_id ?? getActiveVariants(p)[0]?.id ?? null,
+      variant_price_min: p.variant_price_min,
+      variant_price_max: p.variant_price_max,
       price: p.price
         ? typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '')
           ? `₦${Number(p.price).toLocaleString()}`
@@ -204,7 +211,7 @@ export default function Marketplace() {
       const res = await fetch(`${API_URL}/cart/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+        body: JSON.stringify({ product_id: product.id, ...(product.default_variant_id ? { variant_id: product.default_variant_id } : {}), quantity: 1 }),
       });
       const data = await res.json().catch(() => ({}));
 

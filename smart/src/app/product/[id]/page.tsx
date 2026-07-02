@@ -10,6 +10,11 @@ import { formatMoney, getSellingPrice, hasActiveDiscount, toNumber } from '@/lib
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
+const getActiveVariants = (p: any) =>
+  (Array.isArray(p.variants) ? p.variants : []).filter((variant: any) => variant && variant.is_active !== false);
+
+const getDefaultVariantId = (p: any) => p.default_variant_id ?? getActiveVariants(p)[0]?.id ?? null;
+
 const getGalleryImages = (p: any) => {
   const fallback = p.image_url || p.image || '/images/smartwatch.png';
   const images = Array.isArray(p.image_urls) && p.image_urls.length ? p.image_urls : [fallback];
@@ -32,6 +37,11 @@ const mapProducts = (list: any[]): Product[] =>
     minimum_deposit_percentage: p.minimum_deposit_percentage,
     fine_percentage_on_default: p.fine_percentage_on_default,
     stock: p.stock ?? 0,
+    variants: getActiveVariants(p),
+    has_variants: p.has_variants === true || getActiveVariants(p).length > 1,
+    default_variant_id: getDefaultVariantId(p),
+    variant_price_min: p.variant_price_min,
+    variant_price_max: p.variant_price_max,
     minimum_wallet_balance_required: p.minimum_wallet_balance_required,
     grace_period_days: p.grace_period_days,
   }));
@@ -49,6 +59,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartNotice, setCartNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   const fetchProduct = async (productId: string) => {
     if (typeof window === 'undefined') return;
@@ -147,12 +158,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     if (!product) return;
     const primaryIndex = product.image_urls?.findIndex((url) => url === product.image) ?? -1;
     setActiveImageIndex(primaryIndex >= 0 ? primaryIndex : 0);
+    setSelectedVariantId(product.default_variant_id ?? product.variants?.[0]?.id ?? null);
   }, [product?.id, product?.image]);
 
   const showCartNotice = (notice: { type: 'success' | 'error'; message: string }) => {
     setCartNotice(notice);
     window.setTimeout(() => setCartNotice(null), 3200);
   };
+
+  const getCartPayload = () => ({
+    product_id: product?.id,
+    ...(selectedVariant?.id ? { variant_id: selectedVariant.id } : {}),
+    quantity: 1,
+  });
 
   const handleAddToCart = async () => {
     if (!product || typeof window === 'undefined' || addingToCart) return;
@@ -170,7 +188,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       const res = await fetch(`${API_URL}/cart/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+        body: JSON.stringify(getCartPayload()),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -178,7 +196,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         throw new Error(data.message || 'Could not add item to cart.');
       }
 
-      showCartNotice({ type: 'success', message: `${product.name} added to cart.` });
+      showCartNotice({ type: 'success', message: `${product.name}${selectedVariant?.name ? ` (${selectedVariant.name})` : ''} added to cart.` });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not add item to cart.';
       showCartNotice({ type: 'error', message });
@@ -202,7 +220,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       await fetch(`${API_URL}/cart/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+        body: JSON.stringify(getCartPayload()),
       });
       router.push('/checkout');
     } catch (error) {
@@ -226,7 +244,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       await fetch(`${API_URL}/cart/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+        body: JSON.stringify(getCartPayload()),
       });
       router.push('/checkout');
     } catch (error) {
@@ -236,12 +254,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     }
   };
 
+  const selectedVariant = product?.variants?.find((variant) => variant.id === selectedVariantId) ?? product?.variants?.[0];
+  const displayPrice = selectedVariant?.effective_price ?? product?.effective_price ?? product?.discounted_price ?? product?.price;
+  const originalPrice = selectedVariant?.price ?? product?.price;
+  const displayStock = selectedVariant?.stock ?? product?.stock ?? 0;
+  const displayDiscountPercentage = selectedVariant?.discount_percentage ?? product?.discount_percentage;
+  const isDiscounted = selectedVariant ? hasActiveDiscount(selectedVariant) : (product ? hasActiveDiscount(product) : false);
+
   const similarProducts = allProducts.filter(p => p.category === product?.category && p.id !== product?.id).slice(0, 5);
   const otherProducts = allProducts.filter(p => p.id !== product?.id).sort(() => Math.random() - 0.5).slice(0, 5);
 
   const depositPercent = product ? toNumber(product.minimum_deposit_percentage) : 0;
   const installmentMonths = product ? toNumber(product.installment_duration_months) : 0;
-  const installmentPrice = product ? toNumber(product.effective_price ?? product.discounted_price ?? product.price) : 0;
+  const installmentPrice = product ? toNumber(displayPrice) : 0;
   const canShowInstallment =
     product?.installment_enabled === true
     && Number.isFinite(depositPercent)
@@ -598,18 +623,37 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               {/* Price */}
               <div className="flex items-baseline gap-3 mb-6">
                 <span className="text-3xl sm:text-4xl font-bold text-blue-300">
-                  {formatMoney(getSellingPrice(product))}
+                  {formatMoney(displayPrice)}
                 </span>
-                {hasActiveDiscount(product) && (
+                {isDiscounted && (
                   <>
-                    <span className="text-xl text-white/40 line-through">{formatMoney(product.price)}</span>
+                    <span className="text-xl text-white/40 line-through">{formatMoney(originalPrice)}</span>
                     <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-300 text-sm font-bold">
-                      {Number(product.discount_percentage)}% OFF
+                      {Number(displayDiscountPercentage)}% OFF
                     </span>
                   </>
                 )}
               </div>
 
+
+              {product.variants && product.variants.length > 0 && (
+                <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="mb-3 text-sm font-semibold text-white/70">Choose variant</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {product.variants.map((variant) => (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => setSelectedVariantId(variant.id)}
+                        className={`rounded-xl border px-3 py-3 text-left transition ${selectedVariant?.id === variant.id ? 'border-blue-400 bg-blue-500/15 text-white' : 'border-white/10 bg-white/5 text-white/70 hover:border-white/25'}`}
+                      >
+                        <span className="block text-sm font-semibold">{variant.name}</span>
+                        <span className="mt-1 block text-xs text-white/45">{formatMoney(variant.effective_price ?? variant.price)} · {variant.stock} in stock</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Installment Info */}
               {canShowInstallment ? (
@@ -627,6 +671,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   Installment unavailable
                 </div>
               )}
+
+              <p className="mb-4 text-sm text-white/55">Stock available: <span className="font-semibold text-white">{displayStock}</span></p>
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">

@@ -12,19 +12,24 @@ function ProductPrice({ product, variant = 'card' }: { product: Product; variant
   const isModal = variant === 'modal';
 
   return (
-    <div className={isModal ? 'flex flex-wrap items-center gap-2' : 'flex flex-col items-center gap-1'}>
-      <strong className={isModal ? 'text-xl sm:text-2xl text-blue-300' : 'text-[14px] text-gray-400 dark:text-gray-800'}>
+    <div className={isModal ? 'flex flex-wrap items-center gap-2' : 'flex w-full flex-col items-center gap-1 text-center'}>
+      <strong className={isModal ? 'text-xl sm:text-2xl text-blue-300' : 'text-[15px] font-extrabold text-white dark:text-gray-950'}>
         {formatMoney(getSellingPrice(product))}
       </strong>
-      {discounted && (
-        <span className={isModal ? 'flex flex-wrap items-center gap-2' : 'flex items-center justify-center gap-2'}>
-          <span className={isModal ? 'text-sm text-white/45 line-through' : 'text-xs text-gray-500 dark:text-gray-400 line-through'}>
+      {discounted ? (
+        <>
+          <span className={isModal ? 'text-sm text-white/45 line-through' : 'text-xs font-semibold text-gray-400 dark:text-gray-500 line-through'}>
             {formatMoney(product.price)}
           </span>
-          <span className={isModal ? 'rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-bold text-emerald-200' : 'rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300'}>
+          <span className={isModal ? 'rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-bold text-emerald-200' : 'rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300 dark:text-emerald-700'}>
             {Number(product.discount_percentage)}% OFF
           </span>
-        </span>
+        </>
+      ) : (
+        <>
+          <span className="h-4 text-xs text-transparent" aria-hidden="true">—</span>
+          <span className="h-[22px]" aria-hidden="true" />
+        </>
       )}
     </div>
   );
@@ -462,21 +467,35 @@ export default function Marketplace() {
             </svg>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4 lg:gap-5 xl:grid-cols-5 2xl:grid-cols-6 max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-8">
             {filteredProducts.map((product) => (
               <motion.div
                 key={product.id}
-                whileHover={{ y: -4 }}
+                whileHover={{ y: -3 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
                 onClick={() => router.push(`/product/${product.id}`)}
-                className="cursor-pointer flex flex-col items-center bg-transparent"
+                className="group flex h-[330px] cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/10 bg-gray-950/95 shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition-all duration-300 hover:border-cyan-300/45 hover:shadow-[0_16px_42px_rgba(56,189,248,0.18)] dark:border-gray-200 dark:bg-white dark:shadow-[0_10px_28px_rgba(15,23,42,0.08)] dark:hover:border-indigo-300 sm:h-[350px] lg:h-[360px]"
               >
-                <div className="w-full aspect-[4/5] bg-white overflow-hidden relative flex items-center justify-center">
-                  <img src={product.image} alt={product.name} className="max-w-full max-h-full w-auto h-auto object-contain" />
+                <div className="flex h-[132px] w-full flex-shrink-0 items-center justify-center bg-white p-4 sm:h-[145px] sm:p-5 lg:h-[150px]">
+                  <img src={product.image} alt={product.name} className="h-full w-full object-contain object-center transition-transform duration-300 group-hover:scale-[1.03]" />
                 </div>
-                <div className="py-4 text-center w-full px-2 bg-gray-900 dark:bg-white transition-colors">
-                  <h3 className="text-[15px] font-bold text-white dark:text-gray-900 mb-1">{product.name}</h3>
-                  <p className="text-[13px] font-bold text-gray-300 dark:text-gray-500 mb-2">{product.category}</p>
+                <div className="flex min-h-0 flex-1 flex-col px-3 py-3 text-center sm:px-4 sm:py-3.5">
+                  <h3
+                    className="mb-2 h-10 overflow-hidden text-[13px] font-bold leading-5 text-white dark:text-gray-950 sm:text-[14px]"
+                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                  >
+                    {product.name}
+                  </h3>
+                  <p className="mb-2 h-4 truncate text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300/85 dark:text-indigo-600">{product.category}</p>
+                  <div className="flex-grow" />
                   <ProductPrice product={product} />
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); router.push(`/product/${product.id}`); }}
+                    className="mt-3 h-9 rounded-full bg-gradient-to-r from-cyan-400 to-indigo-500 px-3 text-xs font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-blue-500/20 transition-all duration-300 hover:shadow-cyan-400/30"
+                  >
+                    View product
+                  </button>
                 </div>
               </motion.div>
             ))}

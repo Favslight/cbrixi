@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Navbar from '../../../components/Navbar';
+import { formatMoney, getCartUnitPrice, hasActiveDiscount, toNumber } from '@/lib/pricing';
 
 interface CartItem {
     id: string; // cartitem ID
@@ -13,7 +14,12 @@ interface CartItem {
     product_id: string;
     quantity: number;
     name: string;
-    price: string;
+    price: string | number;
+    discount_enabled?: boolean;
+    discount_percentage?: string | number;
+    discount_amount?: string | number;
+    discounted_price?: string | number;
+    effective_price?: string | number;
     image_url: string;
     installment_enabled: boolean;
     installment_duration_months: number;
@@ -140,7 +146,7 @@ export default function CartPage() {
     };
 
     const calculateTotal = () => {
-        return cartItems.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
+        return cartItems.reduce((acc, item) => acc + (toNumber(getCartUnitPrice(item)) * item.quantity), 0);
     };
 
     return (
@@ -228,7 +234,17 @@ export default function CartPage() {
                                             <Link href={`/marketplace`} className="text-xl font-bold hover:text-blue-400 transition-colors">
                                                 {item.name}
                                             </Link>
-                                            <p className="text-2xl font-semibold text-white/90 mt-1">₦{parseFloat(item.price).toFixed(2)}</p>
+                                            <div className="mt-1">
+                                                <p className="text-2xl font-semibold text-white/90">{formatMoney(getCartUnitPrice(item))}</p>
+                                                {hasActiveDiscount(item) && (
+                                                    <div className="mt-1 flex items-center justify-center gap-2 sm:justify-start">
+                                                        <span className="text-sm text-white/35 line-through">{formatMoney(item.price)}</span>
+                                                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-300">
+                                                            {Number(item.discount_percentage)}% OFF
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
 
                                             {item.installment_enabled && (
                                                 <div className="inline-flex mt-2 px-3 py-1 bg-green-500/10 border border-green-500/20 text-green-400 text-xs rounded-full font-medium">
@@ -304,7 +320,7 @@ export default function CartPage() {
                                 <div className="space-y-4 mb-6">
                                     <div className="flex justify-between text-white/70">
                                         <span>Subtotal ({cartItems.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
-                                        <span className="text-white font-medium">₦{calculateTotal().toFixed(2)}</span>
+                                        <span className="text-white font-medium">{formatMoney(calculateTotal())}</span>
                                     </div>
                                     <div className="flex justify-between text-white/70">
                                         <span>Estimated Tax</span>
@@ -318,7 +334,7 @@ export default function CartPage() {
                                     <div className="flex justify-between items-center pt-2">
                                         <span className="text-lg font-bold">Total</span>
                                         <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                                            ₦{calculateTotal().toFixed(2)}
+                                            {formatMoney(calculateTotal())}
                                         </span>
                                     </div>
                                 </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Product, products as localProducts } from '@/lib/productsStore';
+import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 import { useRouter } from 'next/navigation';
 import CbrixiLogo from './CbrixiLogo';
 
@@ -31,6 +32,29 @@ const getDescriptionParagraphs = (description: string) => {
   return groupedSentences;
 };
 
+function ProductPrice({ product, variant = 'card' }: { product: Product; variant?: 'card' | 'modal' }) {
+  const discounted = hasActiveDiscount(product);
+  const isModal = variant === 'modal';
+
+  return (
+    <div className={isModal ? 'flex flex-wrap items-center gap-2' : 'flex flex-col items-center gap-1'}>
+      <strong className={isModal ? 'text-xl sm:text-2xl text-blue-300' : 'text-[14px] text-gray-400 dark:text-gray-800'}>
+        {formatMoney(getSellingPrice(product))}
+      </strong>
+      {discounted && (
+        <span className={isModal ? 'flex flex-wrap items-center gap-2' : 'flex items-center justify-center gap-2'}>
+          <span className={isModal ? 'text-sm text-white/45 line-through' : 'text-xs text-gray-500 dark:text-gray-400 line-through'}>
+            {formatMoney(product.price)}
+          </span>
+          <span className={isModal ? 'rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-bold text-emerald-200' : 'rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300'}>
+            {Number(product.discount_percentage)}% OFF
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
@@ -53,7 +77,7 @@ export default function Marketplace() {
     (list || []).map((p: any) => ({
       ...p,
       image: p.image_url || p.image || '/images/smartwatch.png',
-      image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 4),
+      image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 7),
       gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
       price: p.price
         ? typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '')
@@ -461,10 +485,7 @@ export default function Marketplace() {
               <motion.div
                 key={product.id}
                 whileHover={{ y: -4 }}
-                onClick={() => {
-                  setSelectedProduct(product);
-                  setActiveImageIndex(0);
-                }}
+                onClick={() => router.push(`/product/${product.id}`)}
                 className="cursor-pointer flex flex-col items-center bg-transparent"
               >
                 <div className="w-full aspect-[4/5] bg-gray-100 dark:bg-[#111116] overflow-hidden relative">
@@ -473,7 +494,7 @@ export default function Marketplace() {
                 <div className="py-4 text-center w-full px-2 bg-gray-900 dark:bg-white transition-colors">
                   <h3 className="text-[15px] font-bold text-white dark:text-gray-900 mb-1">{product.name}</h3>
                   <p className="text-[13px] font-bold text-gray-300 dark:text-gray-500 mb-2">{product.category}</p>
-                  <p className="text-[14px] font-bold text-gray-400 dark:text-gray-800">{product.price}</p>
+                  <ProductPrice product={product} />
                 </div>
               </motion.div>
             ))}
@@ -573,7 +594,9 @@ export default function Marketplace() {
                           <p className="text-sm font-semibold uppercase text-blue-300/80">{selectedProduct.category}</p>
                           <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold leading-tight text-white">{selectedProduct.name}</h2>
                         </div>
-                        <p className="text-xl sm:text-2xl font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl whitespace-nowrap w-fit">{selectedProduct.price}</p>
+                        <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl w-fit">
+                          <ProductPrice product={selectedProduct} variant="modal" />
+                        </div>
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5 max-w-5xl">

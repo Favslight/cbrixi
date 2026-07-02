@@ -1,7 +1,8 @@
-export interface Product {
+import type { ProductDiscountFields } from './pricing';
+
+export interface Product extends ProductDiscountFields {
   id: string;
   name: string;
-  price: string;
   description: string;
   image: string;
   category: string;

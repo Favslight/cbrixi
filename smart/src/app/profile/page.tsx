@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Navbar from "../../../components/Navbar";
+import ReferralsDashboard from "./ReferralsDashboard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.cbrixi.com";
 
@@ -188,6 +189,10 @@ export default function ProfilePage() {
               </div>
             )}
           </form>
+
+          {/* Referrals Section */}
+          <ReferralsDashboard />
+
         </motion.div>
       </div>
     </main>

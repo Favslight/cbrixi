@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 
 interface Product {
   id: string;
@@ -10,6 +11,11 @@ interface Product {
   description?: string | null;
   category?: string | null;
   price: string | number;
+  discount_enabled: boolean;
+  discount_percentage: string | number;
+  discount_amount: string | number;
+  discounted_price: string | number;
+  effective_price: string | number;
   image?: string;
   image_url?: string | null;
   image_public_id?: string | null;
@@ -79,12 +85,6 @@ export default function AdminProductsPage() {
 
   const getProductImage = (product: Product) => {
     return product.image_url || product.image_urls?.[0] || product.image || '/images/smartwatch.png';
-  };
-
-  const formatPrice = (price: string | number) => {
-    const numericPrice = Number(price);
-    if (Number.isFinite(numericPrice)) return `₦${numericPrice.toLocaleString()}`;
-    return String(price);
   };
 
   const getStatus = (product: Product) => {
@@ -162,7 +162,21 @@ export default function AdminProductsPage() {
                         </div>
                       </td>
                       <td className="py-3 px-4">{product.category || 'Uncategorized'}</td>
-                      <td className="py-3 px-4">{formatPrice(product.price)}</td>
+                      <td className="py-3 px-4">
+                        {hasActiveDiscount(product) ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-emerald-300">{formatMoney(getSellingPrice(product))}</span>
+                              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
+                                {Number(product.discount_percentage)}% OFF
+                              </span>
+                            </div>
+                            <span className="text-xs text-white/40 line-through">{formatMoney(product.price)}</span>
+                          </div>
+                        ) : (
+                          formatMoney(product.price)
+                        )}
+                      </td>
                       <td className="py-3 px-4">{product.stock}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs ${

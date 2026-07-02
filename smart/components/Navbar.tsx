@@ -131,14 +131,14 @@ export default function Navbar() {
                 </motion.a>
             </div>
 
-            {/* Mobile hamburger */}
-            <div className="flex md:hidden items-center gap-4">
-              <a href="/cart" className="text-white/80 hover:text-white transition-colors" aria-label="Cart">
+            {/* Hamburger menu (Active on all screens) */}
+            <div className="flex items-center gap-4 ml-2">
+              <a href="/cart" className="md:hidden text-white/80 hover:text-white transition-colors" aria-label="Cart">
                 <CartIcon />
               </a>
             <button
               onClick={() => setMobileOpen((v) => !v)}
-              className="md:hidden text-white/80 hover:text-white transition-colors p-1"
+              className="text-white/80 hover:text-white transition-colors p-1"
               aria-label="Toggle menu"
             >
               {mobileOpen ? <CloseIcon /> : <MenuIcon />}
@@ -148,7 +148,7 @@ export default function Navbar() {
         </div>
       </motion.nav>
 
-      {/* Mobile drawer */}
+      {/* Drawer */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -157,7 +157,7 @@ export default function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed top-16 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-xl border-b border-white/8 px-6 py-6 md:hidden"
+            className="fixed top-16 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-xl border-b border-white/8 px-6 py-6"
           >
             <div className="flex flex-col gap-4">
               {navLinks.map((link, i) => (
@@ -173,6 +173,30 @@ export default function Navbar() {
                   {link.label}
                 </motion.a>
               ))}
+              {user && !isAdmin && (
+                <>
+                  <motion.a
+                    href="/notifications"
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: navLinks.length * 0.06 }}
+                    onClick={() => setMobileOpen(false)}
+                    className="text-white/70 hover:text-white font-medium text-lg transition-colors"
+                  >
+                    Notifications
+                  </motion.a>
+                  <motion.a
+                    href="/profile"
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: (navLinks.length + 1) * 0.06 }}
+                    onClick={() => setMobileOpen(false)}
+                    className="text-white/70 hover:text-white font-medium text-lg transition-colors"
+                  >
+                    Profile & Referrals
+                  </motion.a>
+                </>
+              )}
               <div className="flex gap-3 pt-2 border-t border-white/10 mt-2">
                 <a href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} className="text-white/60 hover:text-white transition-colors">
                     {isAdmin ? (

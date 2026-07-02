@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { DiscountPreview, formatMoney, toNumber } from '@/lib/pricing';
 
 const CATEGORIES = ['Smart Watches', 'Smart Home', 'Audio Devices', 'Accessories', 'Smart Phones', 'Laptops', 'Vehicles'];
 const MAX_PRODUCT_IMAGES = 7;
@@ -16,6 +17,8 @@ interface ExistingProductImage {
 interface EditFormState {
   name: string;
   price: string;
+  discount_enabled: boolean;
+  discount_percentage: string;
   description: string;
   category: string;
   stock: string;
@@ -34,6 +37,8 @@ export default function EditProductPage() {
   const [form, setForm] = useState<EditFormState>({
     name: '',
     price: '',
+    discount_enabled: false,
+    discount_percentage: '',
     description: '',
     category: 'Smart Watches',
     stock: '',
@@ -44,6 +49,8 @@ export default function EditProductPage() {
   });
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -79,6 +86,8 @@ export default function EditProductPage() {
         setForm({
           name: String(product.name ?? ''),
           price: String(product.price ?? ''),
+          discount_enabled: product.discount_enabled === true,
+          discount_percentage: String(product.discount_percentage ?? ''),
           description: String(product.description ?? ''),
           category: String(product.category ?? 'Smart Watches'),
           stock: String(product.stock ?? ''),
@@ -98,10 +107,72 @@ export default function EditProductPage() {
   }, [API_URL, id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+    }));
     setError('');
   };
+
+  useEffect(() => {
+    if (bootLoading) return;
+
+    const price = toNumber(form.price);
+    const percentage = toNumber(form.discount_percentage);
+
+    if (!form.price.trim() || price <= 0) {
+      setPreviewLoading(false);
+      setDiscountPreview(null);
+      return;
+    }
+
+    if (form.discount_enabled && (percentage <= 0 || percentage > 100)) {
+      setPreviewLoading(false);
+      setDiscountPreview(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setPreviewLoading(true);
+      try {
+        const token = localStorage.getItem('adminToken') ?? '';
+        const res = await fetch(`${API_URL}/admin/products/discount-preview`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            price,
+            discount_enabled: form.discount_enabled,
+            ...(form.discount_enabled ? { discount_percentage: percentage } : {}),
+          }),
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.discount) {
+          setDiscountPreview(data.discount);
+        } else {
+          setDiscountPreview(null);
+        }
+      } catch (previewError) {
+        if (!(previewError instanceof DOMException && previewError.name === 'AbortError')) {
+          setDiscountPreview(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setPreviewLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [API_URL, bootLoading, form.discount_enabled, form.discount_percentage, form.price]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
@@ -200,6 +271,13 @@ export default function EditProductPage() {
       setError('Please fill in name, price, and description.');
       return;
     }
+    if (form.discount_enabled) {
+      const percentage = toNumber(form.discount_percentage);
+      if (percentage <= 0 || percentage > 100) {
+        setError('Discount percentage must be greater than 0 and less than or equal to 100.');
+        return;
+      }
+    }
     const finalImageCount = form.existingImages.length + form.newImages.length;
     if (finalImageCount < 1 || finalImageCount > MAX_PRODUCT_IMAGES) {
       setError(`A product must have between 1 and ${MAX_PRODUCT_IMAGES} images.`);
@@ -213,6 +291,10 @@ export default function EditProductPage() {
       const formData = new FormData();
       formData.append('name', form.name);
       formData.append('price', form.price);
+      formData.append('discount_enabled', String(form.discount_enabled));
+      if (form.discount_enabled) {
+        formData.append('discount_percentage', form.discount_percentage);
+      }
       formData.append('description', form.description);
       formData.append('category', form.category);
       if (form.stock.trim() !== '') formData.append('stock', form.stock);
@@ -290,6 +372,35 @@ export default function EditProductPage() {
         <div>
           <label className={labelClass}>Price</label>
           <input name="price" value={form.price} onChange={handleChange} className={inputClass} required />
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <label className="flex items-center justify-between gap-3 text-sm font-medium text-white/70">
+            <span>Temporary Discount</span>
+            <input name="discount_enabled" type="checkbox" checked={form.discount_enabled} onChange={handleChange} className="rounded" />
+          </label>
+          {form.discount_enabled && (
+            <div>
+              <label className={labelClass}>Discount Percentage (%)</label>
+              <input name="discount_percentage" type="number" value={form.discount_percentage} onChange={handleChange} className={inputClass} min="0.01" max="100" step="0.01" />
+            </div>
+          )}
+          <div className="rounded-xl border border-white/8 bg-black/20 p-3 text-sm text-white/65">
+            {previewLoading ? (
+              <span>Checking discount...</span>
+            ) : discountPreview ? (
+              <div className="space-y-1">
+                <p>Selling price: <span className="font-semibold text-white">{formatMoney(discountPreview.effective_price)}</span></p>
+                {discountPreview.discount_enabled && (
+                  <p>
+                    Save {formatMoney(discountPreview.discount_amount)} with {Number(discountPreview.discount_percentage)}% off.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <span>Enter a valid price to preview the selling price.</span>
+            )}
+          </div>
         </div>
 
         <div>

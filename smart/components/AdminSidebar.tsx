@@ -11,6 +11,8 @@ const navItems = [
   { label: 'Orders', href: '/admin/orders', icon: OrdersIcon },
   { label: 'Users', href: '/admin/users', icon: UsersIcon },
   { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
+  { label: 'Referrals', href: '/admin/referrals', icon: ReferralsIcon },
+  { label: 'Notifications', href: '/admin/notifications', icon: BellIcon },
 ];
 
 interface AdminSidebarProps {
@@ -130,6 +132,21 @@ function PaymentsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+    </svg>
+  );
+}
+function ReferralsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+      <circle cx="12" cy="12" r="9" />
+    </svg>
+  );
+}
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
     </svg>
   );
 }

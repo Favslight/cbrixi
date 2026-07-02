@@ -5,13 +5,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
+import { formatMoney, getCartUnitPrice, hasActiveDiscount, toNumber } from '@/lib/pricing';
 
 interface CartItem {
     id: string;
     product_id: string;
     quantity: number;
     name: string;
-    price: string;
+    price: string | number;
+    discount_enabled?: boolean;
+    discount_percentage?: string | number;
+    discount_amount?: string | number;
+    discounted_price?: string | number;
+    effective_price?: string | number;
     image_url: string;
     installment_enabled: boolean;
     installment_duration_months: number;
@@ -90,7 +96,7 @@ export default function CheckoutPage() {
 
     useEffect(() => { fetchCart(); }, []);   // eslint-disable-line
 
-    const total = cartItems.reduce((acc, i) => acc + parseFloat(i.price) * i.quantity, 0);
+    const total = cartItems.reduce((acc, i) => acc + toNumber(getCartUnitPrice(i)) * i.quantity, 0);
     const allInstallmentEnabled = cartItems.every(i => i.installment_enabled);
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const cbrillianceVerified = userProfile?.cbrilliance_email_verified === true;
@@ -142,7 +148,8 @@ export default function CheckoutPage() {
                     return;
                 }
 
-                router.push(`/payment?order_id=${order?.id}&total=${total}&mode=${paymentMode}`);
+                const paymentTotal = order?.total_amount ?? total;
+                router.push(`/payment?order_id=${order?.id}&total=${encodeURIComponent(String(paymentTotal))}&mode=${paymentMode}`);
             } else {
                 setError(data.message || 'Checkout failed. Please try again.');
             }
@@ -254,7 +261,15 @@ export default function CheckoutPage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="font-bold text-white whitespace-nowrap">₦{(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
+                                            <div className="text-right whitespace-nowrap">
+                                                <p className="font-bold text-white">{formatMoney(toNumber(getCartUnitPrice(item)) * item.quantity)}</p>
+                                                {hasActiveDiscount(item) && (
+                                                    <p className="mt-1 text-xs text-white/35">
+                                                        <span className="line-through">{formatMoney(toNumber(item.price) * item.quantity)}</span>
+                                                        <span className="ml-2 text-emerald-300">{Number(item.discount_percentage)}% OFF</span>
+                                                    </p>
+                                                )}
+                                            </div>
                                         </li>
                                     ))}
                                 </ul>
@@ -282,7 +297,7 @@ export default function CheckoutPage() {
                                         title="Pay in Full"
                                         description="Pay the entire amount upfront — no interest, no commitments."
                                         badge={<span className="text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full text-xs">Recommended</span>}
-                                        amount={`₦${total.toFixed(2)}`}
+                                        amount={formatMoney(total)}
                                     />
 
                                     {/* Installment */}
@@ -335,7 +350,7 @@ export default function CheckoutPage() {
                                 <h2 className="text-xl font-bold mb-6 pb-4 border-b border-white/10">Order Summary</h2>
 
                                 <div className="space-y-4 text-sm mb-6">
-                                    <Row label={`Subtotal (${cartItems.reduce((a, i) => a + i.quantity, 0)} items)`} value={`₦${total.toFixed(2)}`} />
+                                    <Row label={`Subtotal (${cartItems.reduce((a, i) => a + i.quantity, 0)} items)`} value={formatMoney(total)} />
                                     <Row label="Shipping" value="Free" valueClass="text-green-400" />
                                     {paymentMode === 'INSTALLMENT' && (
                                         <>
@@ -347,7 +362,7 @@ export default function CheckoutPage() {
                                 <div className="flex justify-between items-center mb-8 pt-4 border-t border-white/10">
                                     <span className="text-base font-bold">{paymentMode === 'INSTALLMENT' ? 'Payment due now' : 'Total Due'}</span>
                                     <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                                        {paymentMode === 'INSTALLMENT' ? 'N0.00' : fmtMoney(total)}
+                                        {paymentMode === 'INSTALLMENT' ? formatMoney(0) : formatMoney(total)}
                                     </span>
                                 </div>
 

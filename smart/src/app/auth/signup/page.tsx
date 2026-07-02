@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,8 +16,17 @@ export default function Signup() {
     username: "",
     email: "",
     password: "",
+    referral_code: "",
     agreeToTerms: false,
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref") || params.get("referral_code") || params.get("referralCode");
+    if (ref) {
+      setFormData((prev) => ({ ...prev, referral_code: ref }));
+    }
+  }, []);
 
   const [error, setError] = useState("");
   const [passwordStrength, setPasswordStrength] = useState({
@@ -81,7 +90,8 @@ export default function Signup() {
           lastname: formData.lastname,
           username: formData.username,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
+          referral_code: formData.referral_code || undefined
         }),
       });
 
@@ -243,6 +253,17 @@ export default function Signup() {
               </div>
             </motion.div>
           )}
+        </div>
+
+        {/* Referral Code Field (Optional) */}
+        <div>
+          <label htmlFor="referral_code" className="block text-sm font-medium text-white/80 mb-2">Referral Code (Optional)</label>
+          <input
+            type="text" id="referral_code" name="referral_code"
+            value={formData.referral_code} onChange={handleInputChange}
+            placeholder="Enter referral code if you have one"
+            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all glass-card"
+          />
         </div>
 
         {/* Terms Agreement */}

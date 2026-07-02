@@ -25,8 +25,7 @@ export default function CbrixiLogo({
   animate = true,
   textSize = 'text-xl',
 }: CbrixiLogoProps) {
-  const iconSize = size;
-  const svgSize = Math.round(iconSize * 0.5);
+  const iconSize = size * 1.4;
 
   const Wrapper = animate ? motion.a : 'a';
   const wrapperProps = animate
@@ -36,30 +35,40 @@ export default function CbrixiLogo({
   return (
     <Wrapper
       {...(wrapperProps as any)}
-      className={`flex items-center gap-2 group ${className}`}
+      className={`flex items-center gap-2.5 group ${className}`}
     >
-      {/* Icon — gradient square with stacked layers */}
+      {/* Logo icon — uses the uploaded logo.jpg
+          Technique: The image (dark logo on white bg) is inverted so the logo
+          becomes white and the bg becomes black. Then rendered on a black
+          container with overflow hidden. The whole container uses
+          mix-blend-mode: screen so black = invisible, white logo = visible. */}
       <div
-        style={{ width: iconSize, height: iconSize }}
-        className="rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0"
+        style={{ 
+          width: iconSize, 
+          height: iconSize,
+          mixBlendMode: 'screen',
+          background: '#000',
+          borderRadius: 6,
+          overflow: 'hidden',
+        }}
+        className="flex-shrink-0 flex items-center justify-center"
       >
-        <svg
-          width={svgSize}
-          height={svgSize}
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="text-white"
-        >
-          {/* Three horizontal stacked-layer paths — the CBRIXI icon mark */}
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 12l10 5 10-5" />
-          <path d="M2 17l10 5 10-5" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.jpg"
+          alt="CBRIXI"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            filter: 'invert(1)',
+          }}
+        />
       </div>
 
       {/* Wordmark */}
-      <span className={`${textSize} font-bold tracking-widest text-white leading-none`}>
-        CBRI<span className="text-blue-400">XI</span>
+      <span className={`${textSize} font-extrabold tracking-widest text-white leading-none`}>
+        CBRIXI
       </span>
     </Wrapper>
   );

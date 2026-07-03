@@ -27,7 +27,7 @@ export function getSellingPrice(product: ProductDiscountFields) {
     return product.discounted_price ?? product.effective_price ?? product.price;
   }
 
-  return product.price;
+  return product.effective_price ?? product.price;
 }
 
 export function getCartUnitPrice(product: ProductDiscountFields) {

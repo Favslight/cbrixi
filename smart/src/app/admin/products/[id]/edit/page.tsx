@@ -22,7 +22,16 @@ interface ProductVariantForm {
   color: string;
   sku: string;
   price: string;
-  stock: string;
+}
+
+interface ProductSpecificationItemForm {
+  key: string;
+  value: string;
+}
+
+interface ProductSpecificationSectionForm {
+  section: string;
+  items: ProductSpecificationItemForm[];
 }
 
 interface EditFormState {
@@ -32,14 +41,11 @@ interface EditFormState {
   discount_percentage: string;
   display_order: string;
   description: string;
+  specifications: ProductSpecificationSectionForm[];
   category: string;
-  stock: string;
   installment_enabled: boolean;
   minimum_deposit_percentage: string;
   installment_duration_months: string;
-  fine_percentage_on_default: string;
-  minimum_wallet_balance_required: string;
-  grace_period_days: string;
   existingImages: ExistingProductImage[];
   newImages: File[];
   newImagePreviews: string[];
@@ -60,14 +66,11 @@ export default function EditProductPage() {
     discount_percentage: '',
     display_order: '',
     description: '',
+    specifications: [],
     category: 'Smart Watches',
-    stock: '',
     installment_enabled: false,
     minimum_deposit_percentage: '',
     installment_duration_months: '',
-    fine_percentage_on_default: '',
-    minimum_wallet_balance_required: '',
-    grace_period_days: '',
     existingImages: [],
     newImages: [],
     newImagePreviews: [],
@@ -121,9 +124,15 @@ export default function EditProductPage() {
               color: String(specs.color ?? ''),
               sku: String(variant.sku ?? ''),
               price: String(variant.price ?? ''),
-              stock: variant.stock === undefined || variant.stock === null ? '' : String(variant.stock),
             };
           });
+        const specifications = (Array.isArray(product.specifications) ? product.specifications : []).map((section: any) => ({
+          section: String(section.section ?? ''),
+          items: (Array.isArray(section.items) ? section.items : []).map((item: any) => ({
+            key: String(item.key ?? ''),
+            value: String(item.value ?? ''),
+          })),
+        }));
 
         setForm({
           name: String(product.name ?? ''),
@@ -132,14 +141,11 @@ export default function EditProductPage() {
           discount_percentage: String(product.discount_percentage ?? ''),
           display_order: product.display_order === undefined || product.display_order === null ? '' : String(product.display_order),
           description: String(product.description ?? ''),
+          specifications,
           category: String(product.category ?? 'Smart Watches'),
-          stock: String(product.stock ?? ''),
           installment_enabled: product.installment_enabled === true,
           minimum_deposit_percentage: String(product.minimum_deposit_percentage ?? ''),
           installment_duration_months: String(product.installment_duration_months ?? ''),
-          fine_percentage_on_default: String(product.fine_percentage_on_default ?? ''),
-          minimum_wallet_balance_required: String(product.minimum_wallet_balance_required ?? ''),
-          grace_period_days: String(product.grace_period_days ?? ''),
           existingImages,
           newImages: [],
           newImagePreviews: [],
@@ -314,9 +320,60 @@ export default function EditProductPage() {
     });
   };
 
+  const addSpecificationSection = () => setForm((prev) => ({
+    ...prev,
+    specifications: [...prev.specifications, { section: '', items: [{ key: '', value: '' }] }],
+  }));
+
+  const updateSpecificationSection = (sectionIndex: number, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      specifications: prev.specifications.map((section, index) => index === sectionIndex ? { ...section, section: value } : section),
+    }));
+  };
+
+  const removeSpecificationSection = (sectionIndex: number) => {
+    setForm((prev) => ({
+      ...prev,
+      specifications: prev.specifications.filter((_, index) => index !== sectionIndex),
+    }));
+  };
+
+  const addSpecificationItem = (sectionIndex: number) => {
+    setForm((prev) => ({
+      ...prev,
+      specifications: prev.specifications.map((section, index) => (
+        index === sectionIndex ? { ...section, items: [...section.items, { key: '', value: '' }] } : section
+      )),
+    }));
+  };
+
+  const updateSpecificationItem = (sectionIndex: number, itemIndex: number, field: keyof ProductSpecificationItemForm, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      specifications: prev.specifications.map((section, index) => (
+        index === sectionIndex
+          ? {
+              ...section,
+              items: section.items.map((item, nextItemIndex) => nextItemIndex === itemIndex ? { ...item, [field]: value } : item),
+            }
+          : section
+      )),
+    }));
+  };
+
+  const removeSpecificationItem = (sectionIndex: number, itemIndex: number) => {
+    setForm((prev) => ({
+      ...prev,
+      specifications: prev.specifications.map((section, index) => (
+        index === sectionIndex ? { ...section, items: section.items.filter((_, nextItemIndex) => nextItemIndex !== itemIndex) } : section
+      )),
+    }));
+  };
+
   const addVariant = () => setForm((prev) => ({
     ...prev,
-    variants: [...prev.variants, { name: '', ram: '', rom: '', color: '', sku: '', price: '', stock: '' }],
+    variants: [...prev.variants, { name: '', ram: '', rom: '', color: '', sku: '', price: '' }],
   }));
 
   const updateVariant = (index: number, field: keyof ProductVariantForm, value: string) => {
@@ -336,15 +393,27 @@ export default function EditProductPage() {
     name: variant.name.trim(),
     specs: Object.fromEntries(Object.entries({ ram: variant.ram, rom: variant.rom, color: variant.color }).filter(([, value]) => value.trim() !== '')),
     price: toNumber(variant.price),
-    ...(variant.stock.trim() ? { stock: toNumber(variant.stock) } : {}),
     ...(variant.sku.trim() ? { sku: variant.sku.trim() } : {}),
   }));
+
+  const buildSpecificationsPayload = () => form.specifications
+    .map((section) => ({
+      section: section.section.trim(),
+      items: section.items
+        .map((item) => ({ key: item.key.trim(), value: item.value.trim() }))
+        .filter((item) => item.key && item.value),
+    }))
+    .filter((section) => section.section && section.items.length > 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
-    if (!form.name.trim() || !form.price.trim() || !form.description.trim()) {
-      setError('Please fill in name, price, and description.');
+    if (!form.name.trim() || !form.description.trim()) {
+      setError('Please fill in name and description.');
+      return;
+    }
+    if (!form.price.trim() && form.variants.length === 0) {
+      setError('Enter a price, or keep at least one variant so the backend can derive the product price.');
       return;
     }
     if (form.discount_enabled) {
@@ -363,9 +432,9 @@ export default function EditProductPage() {
       }
     }
     if (form.variants.length > 0) {
-      const invalidVariant = form.variants.some((variant) => !variant.name.trim() || toNumber(variant.price) <= 0 || (variant.stock.trim() !== '' && toNumber(variant.stock) < 0));
+      const invalidVariant = form.variants.some((variant) => !variant.name.trim() || toNumber(variant.price) <= 0);
       if (invalidVariant) {
-        setError('Every variant needs a name, valid price, and optional non-negative stock value.');
+        setError('Every variant needs a name and valid price.');
         return;
       }
     }
@@ -381,7 +450,9 @@ export default function EditProductPage() {
       const token = localStorage.getItem('adminToken') ?? '';
       const formData = new FormData();
       formData.append('name', form.name);
-      formData.append('price', form.price);
+      if (form.price.trim()) {
+        formData.append('price', form.price);
+      }
       if (form.display_order.trim()) {
         formData.append('display_order', form.display_order);
       }
@@ -390,8 +461,8 @@ export default function EditProductPage() {
         formData.append('discount_percentage', form.discount_percentage);
       }
       formData.append('description', form.description);
+      formData.append('specifications', JSON.stringify(buildSpecificationsPayload()));
       formData.append('category', form.category);
-      if (form.stock.trim() !== '') formData.append('stock', form.stock);
       if (form.variants.length > 0) {
         formData.append('variants', JSON.stringify(buildVariantsPayload()));
       }
@@ -399,9 +470,6 @@ export default function EditProductPage() {
       if (form.installment_enabled) {
         formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage);
         formData.append('installment_duration_months', form.installment_duration_months);
-        formData.append('fine_percentage_on_default', form.fine_percentage_on_default || '0');
-        formData.append('minimum_wallet_balance_required', form.minimum_wallet_balance_required || '0');
-        formData.append('grace_period_days', form.grace_period_days || '0');
       }
       formData.append('images_manifest', JSON.stringify(form.existingImages));
       formData.append('thumbnail_index', String(form.thumbnailIndex));
@@ -475,8 +543,8 @@ export default function EditProductPage() {
         </div>
 
         <div>
-          <label className={labelClass}>Price</label>
-          <input name="price" value={form.price} onChange={handleChange} className={inputClass} required />
+          <label className={labelClass}>Price {form.variants.length === 0 && <span className="text-red-400">*</span>}</label>
+          <input name="price" value={form.price} onChange={handleChange} className={inputClass} required={form.variants.length === 0} />
         </div>
 
         <div>
@@ -527,9 +595,31 @@ export default function EditProductPage() {
           <textarea name="description" value={form.description} onChange={handleChange} rows={4} className={`${inputClass} resize-none`} required />
         </div>
 
-        <div>
-          <label className={labelClass}>Stock Quantity</label>
-          <input name="stock" type="number" value={form.stock} onChange={handleChange} className={inputClass} min="0" />
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white/80">Specifications</h2>
+              <p className="text-xs text-white/40">Edit structured technical rows separately from the product story.</p>
+            </div>
+            <button type="button" onClick={addSpecificationSection} className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600">Add section</button>
+          </div>
+          {form.specifications.length === 0 && <p className="text-xs text-white/45">No specification sections added.</p>}
+          {form.specifications.map((section, sectionIndex) => (
+            <div key={sectionIndex} className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <input value={section.section} onChange={(event) => updateSpecificationSection(sectionIndex, event.target.value)} placeholder="Section e.g. Display" className={inputClass} />
+                <button type="button" onClick={() => removeSpecificationSection(sectionIndex)} className="rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-300 hover:bg-red-500/10">Remove</button>
+              </div>
+              {section.items.map((item, itemIndex) => (
+                <div key={itemIndex} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <input value={item.key} onChange={(event) => updateSpecificationItem(sectionIndex, itemIndex, 'key', event.target.value)} placeholder="Feature e.g. Resolution" className={inputClass} />
+                  <input value={item.value} onChange={(event) => updateSpecificationItem(sectionIndex, itemIndex, 'value', event.target.value)} placeholder="Value e.g. 720 x 1576 pixels" className={inputClass} />
+                  <button type="button" onClick={() => removeSpecificationItem(sectionIndex, itemIndex)} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/10">Remove row</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addSpecificationItem(sectionIndex)} className="rounded-lg border border-blue-500/30 px-3 py-2 text-xs text-blue-200 hover:bg-blue-500/10">Add row</button>
+            </div>
+          ))}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
@@ -553,9 +643,8 @@ export default function EditProductPage() {
                 <input value={variant.rom} onChange={(event) => updateVariant(index, 'rom', event.target.value)} placeholder="ROM/Storage" className={inputClass} />
                 <input value={variant.color} onChange={(event) => updateVariant(index, 'color', event.target.value)} placeholder="Color" className={inputClass} />
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input value={variant.price} onChange={(event) => updateVariant(index, 'price', event.target.value)} placeholder="Variant price" className={inputClass} />
-                <input value={variant.stock} onChange={(event) => updateVariant(index, 'stock', event.target.value)} placeholder="Stock" type="number" min="0" className={inputClass} />
                 <input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} placeholder="SKU" className={inputClass} />
               </div>
             </div>
@@ -578,18 +667,6 @@ export default function EditProductPage() {
             <div>
               <label className={labelClass}>Installment Duration (Months) <span className="text-red-400">*</span></label>
               <input name="installment_duration_months" type="number" value={form.installment_duration_months} onChange={handleChange} placeholder="e.g. 6" className={inputClass} min="1" />
-            </div>
-            <div>
-              <label className={labelClass}>Fine Percentage on Default (%)</label>
-              <input name="fine_percentage_on_default" type="number" value={form.fine_percentage_on_default} onChange={handleChange} placeholder="e.g. 5" className={inputClass} min="0" />
-            </div>
-            <div>
-              <label className={labelClass}>Minimum Wallet Balance Required</label>
-              <input name="minimum_wallet_balance_required" type="number" value={form.minimum_wallet_balance_required} onChange={handleChange} placeholder="e.g. 50" className={inputClass} min="0" />
-            </div>
-            <div>
-              <label className={labelClass}>Grace Period (Days)</label>
-              <input name="grace_period_days" type="number" value={form.grace_period_days} onChange={handleChange} placeholder="e.g. 7" className={inputClass} min="0" />
             </div>
           </div>
         )}

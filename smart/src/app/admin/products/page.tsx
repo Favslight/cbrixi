@@ -22,7 +22,18 @@ interface Product {
   image_public_id?: string | null;
   image_urls: string[];
   image_public_ids: string[];
-  stock: number;
+  has_variants?: boolean;
+  default_variant_id?: string | null;
+  variant_price_min?: string | number;
+  variant_price_max?: string | number;
+  variants?: Array<{
+    id: string;
+    name: string;
+    specs?: Record<string, string | number | boolean>;
+    price: string | number;
+    effective_price?: string | number;
+    is_active?: boolean;
+  }>;
   is_active?: boolean;
   status?: 'active' | 'inactive';
 }
@@ -93,6 +104,15 @@ export default function AdminProductsPage() {
   const getStatus = (product: Product) => {
     if (product.status) return product.status;
     return product.is_active === false ? 'inactive' : 'active';
+  };
+
+  const getActiveVariantCount = (product: Product) =>
+    (Array.isArray(product.variants) ? product.variants : []).filter((variant) => variant.is_active !== false).length;
+
+  const getPriceLabel = (product: Product) => {
+    const min = product.variant_price_min ?? product.price;
+    const max = product.variant_price_max ?? product.price;
+    return String(min) !== String(max) ? `${formatMoney(min)} - ${formatMoney(max)}` : formatMoney(getSellingPrice(product));
   };
 
   const handleDisplayOrderUpdate = async (id: string, rawValue: string) => {
@@ -219,7 +239,6 @@ export default function AdminProductsPage() {
                   <th className="text-left py-3 px-4">Category</th>
                   <th className="text-left py-3 px-4">Display Order</th>
                   <th className="text-left py-3 px-4">Price</th>
-                  <th className="text-left py-3 px-4">Stock</th>
                   <th className="text-left py-3 px-4">Status</th>
                   <th className="text-left py-3 px-4">Actions</th>
                 </tr>
@@ -228,6 +247,7 @@ export default function AdminProductsPage() {
                 {products.map((product) => {
                   const status = getStatus(product);
                   const imageCount = product.image_urls?.length || (product.image_url ? 1 : 0);
+                  const variantCount = getActiveVariantCount(product);
 
                   return (
                     <tr
@@ -250,6 +270,7 @@ export default function AdminProductsPage() {
                             <span className="font-medium">{product.name}</span>
                             <p className="mt-1 text-xs text-white/40">
                               {imageCount} image{imageCount === 1 ? '' : 's'}
+                              {variantCount > 0 ? ` · ${variantCount} variant${variantCount === 1 ? '' : 's'}` : ''}
                             </p>
                           </div>
                         </div>
@@ -276,7 +297,7 @@ export default function AdminProductsPage() {
                         {hasActiveDiscount(product) ? (
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-emerald-300">{formatMoney(getSellingPrice(product))}</span>
+                              <span className="font-semibold text-emerald-300">{getPriceLabel(product)}</span>
                               <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
                                 {Number(product.discount_percentage)}% OFF
                               </span>
@@ -284,10 +305,9 @@ export default function AdminProductsPage() {
                             <span className="text-xs text-white/40 line-through">{formatMoney(product.price)}</span>
                           </div>
                         ) : (
-                          formatMoney(product.price)
+                          getPriceLabel(product)
                         )}
                       </td>
-                      <td className="py-3 px-4">{product.stock}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           status === 'active'

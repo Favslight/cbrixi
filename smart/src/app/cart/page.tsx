@@ -9,7 +9,7 @@ import Navbar from '../../../components/Navbar';
 import { formatMoney, getCartUnitPrice, hasActiveDiscount, toNumber } from '@/lib/pricing';
 
 interface CartItem {
-    id: string; // cartitem ID
+    id?: string; // legacy cart item ID
     cart_item_id?: string;
     product_id: string;
     variant_id?: string;
@@ -28,8 +28,6 @@ interface CartItem {
     installment_enabled: boolean;
     installment_duration_months: number;
     minimum_deposit_percentage: number;
-    minimum_wallet_balance_required: number;
-    stock?: number;
 }
 
 export default function CartPage() {
@@ -86,7 +84,7 @@ export default function CartPage() {
                 const data = await res.json();
                 if (data.success) {
                     setCartItems(prev => prev.map(item =>
-                        item.id === itemId ? { ...item, quantity: newQuantity } : item
+                        (item.cart_item_id ?? item.id) === itemId ? { ...item, quantity: newQuantity } : item
                     ));
                 }
             } else {
@@ -118,7 +116,7 @@ export default function CartPage() {
             return;
         }
 
-        const itemId = item.cart_item_id ?? item.id;
+        const itemId = item.cart_item_id ?? item.id ?? item.product_id;
         setUpdatingId(itemId);
         setError('');
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -141,7 +139,7 @@ export default function CartPage() {
                 return;
             }
 
-            setCartItems(prev => prev.filter(cartItem => (cartItem.cart_item_id ?? cartItem.id) !== itemId && cartItem.product_id !== item.product_id));
+            setCartItems(prev => prev.filter(cartItem => (cartItem.cart_item_id ?? cartItem.id) !== itemId));
             fetchCartItems().catch(() => undefined);
         } catch (removeError) {
             setError(removeError instanceof Error ? removeError.message : 'Failed to remove item.');
@@ -221,7 +219,7 @@ export default function CartPage() {
                             <AnimatePresence>
                                 {cartItems.map((item) => (
                                     <motion.div
-                                        key={item.id}
+                                        key={item.cart_item_id ?? item.id ?? `${item.product_id}-${item.variant_id ?? 'default'}`}
                                         layout
                                         initial={{ opacity: 0, x: -20 }}
                                         animate={{ opacity: 1, x: 0 }}
@@ -271,15 +269,15 @@ export default function CartPage() {
                                             {/* Quantity Controls */}
                                             <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
                                                 <button
-                                                    disabled={updatingId === item.id || item.quantity <= 1}
-                                                    onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                                    disabled={updatingId === (item.cart_item_id ?? item.id) || item.quantity <= 1}
+                                                    onClick={() => handleUpdateQuantity(item.cart_item_id ?? item.id ?? item.product_id, item.quantity - 1)}
                                                     className="text-white/60 hover:text-white disabled:opacity-30 transition-colors w-6 h-6 flex items-center justify-center"
                                                 >
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
                                                 </button>
 
                                                 <div className="w-8 text-center font-semibold text-lg relative">
-                                                    {updatingId === item.id ? (
+                                                    {updatingId === (item.cart_item_id ?? item.id) ? (
                                                         <svg className="w-4 h-4 mx-auto animate-spin text-white/50" fill="none" viewBox="0 0 24 24">
                                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
@@ -288,8 +286,8 @@ export default function CartPage() {
                                                 </div>
 
                                                 <button
-                                                    disabled={updatingId === item.id}
-                                                    onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                                    disabled={updatingId === (item.cart_item_id ?? item.id)}
+                                                    onClick={() => handleUpdateQuantity(item.cart_item_id ?? item.id ?? item.product_id, item.quantity + 1)}
                                                     className="text-white/60 hover:text-white disabled:opacity-30 transition-colors w-6 h-6 flex items-center justify-center"
                                                 >
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>

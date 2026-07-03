@@ -30,19 +30,16 @@ const mapProducts = (list: any[]): Product[] =>
     price: p.price ?? 0,
     category: p.category || 'Uncategorized',
     description: p.description ?? '',
+    specifications: Array.isArray(p.specifications) ? p.specifications : [],
     display_order: p.display_order ?? null,
     installment_enabled: p.installment_enabled === true,
     installment_duration_months: p.installment_duration_months,
     minimum_deposit_percentage: p.minimum_deposit_percentage,
-    fine_percentage_on_default: p.fine_percentage_on_default,
-    stock: p.stock ?? 0,
     variants: getActiveVariants(p),
     has_variants: p.has_variants === true || getActiveVariants(p).length > 1,
     default_variant_id: getDefaultVariantId(p),
     variant_price_min: p.variant_price_min,
     variant_price_max: p.variant_price_max,
-    minimum_wallet_balance_required: p.minimum_wallet_balance_required,
-    grace_period_days: p.grace_period_days,
   }));
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -248,7 +245,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const selectedVariant = product?.variants?.find((variant) => variant.id === selectedVariantId) ?? product?.variants?.[0];
   const displayPrice = selectedVariant?.effective_price ?? product?.effective_price ?? product?.discounted_price ?? product?.price;
   const originalPrice = selectedVariant?.price ?? product?.price;
-  const displayStock = selectedVariant?.stock ?? product?.stock ?? null;
   const displayDiscountPercentage = selectedVariant?.discount_percentage ?? product?.discount_percentage;
   const isDiscounted = selectedVariant ? hasActiveDiscount(selectedVariant) : (product ? hasActiveDiscount(product) : false);
 
@@ -265,6 +261,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     && Number.isFinite(installmentMonths)
     && installmentMonths > 0;
   const firstPayment = canShowInstallment ? Math.round((installmentPrice * depositPercent) / 100) : null;
+  const specificationSections = product?.specifications ?? [];
+  const hasSpecifications = specificationSections.some((section) => Array.isArray(section.items) && section.items.length > 0);
+  const selectedVariantSpecs = selectedVariant?.specs && Object.keys(selectedVariant.specs).length > 0
+    ? Object.entries(selectedVariant.specs)
+    : [];
 
   if (loading) {
     return (
@@ -641,7 +642,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                         <span className="block text-sm font-semibold">{variant.name}</span>
                         <span className="mt-1 block text-xs text-white/45">
                           {formatMoney(variant.effective_price ?? variant.price)}
-                          {typeof variant.stock === 'number' ? ` · ${variant.stock} in stock` : ''}
                         </span>
                       </button>
                     ))}
@@ -664,10 +664,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-sm text-white/55">
                   Installment unavailable
                 </div>
-              )}
-
-              {typeof displayStock === 'number' && (
-                <p className="mb-4 text-sm text-white/55">Stock available: <span className="font-semibold text-white">{displayStock}</span></p>
               )}
 
               {/* Action Buttons */}
@@ -761,6 +757,41 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               <p className="text-sm text-white/40 mb-2">Description</p>
               <section className="text-white/70 leading-relaxed whitespace-pre-line">{product.description}</section>
             </div>
+            {selectedVariantSpecs.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <p className="text-sm text-white/40 mb-3">Selected Variant</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {selectedVariantSpecs.map(([key, value]) => (
+                    <div key={key} className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                      <p className="text-xs uppercase text-white/35">{key}</p>
+                      <p className="mt-1 font-medium text-white">{String(value)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {hasSpecifications && (
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <p className="text-sm text-white/40 mb-4">Specifications</p>
+                <section className="grid gap-6 md:grid-cols-2">
+                  {specificationSections.map((section) => (
+                    section.items?.length ? (
+                      <div key={section.section} className="min-w-0">
+                        <h3 className="border-b border-white/10 pb-2 text-sm font-bold text-white">{section.section}</h3>
+                        <div>
+                          {section.items.map((item) => (
+                            <div key={`${section.section}-${item.key}`} className="grid gap-1 border-b border-white/8 py-3 text-sm sm:grid-cols-[minmax(120px,38%)_minmax(0,1fr)] sm:gap-4">
+                              <span className="text-white/50">{item.key}</span>
+                              <span className="break-words text-left text-white/80 sm:text-right">{String(item.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null
+                  ))}
+                </section>
+              </div>
+            )}
           </div>
         </div>
 

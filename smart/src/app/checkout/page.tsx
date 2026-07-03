@@ -8,8 +8,13 @@ import Navbar from '../../../components/Navbar';
 import { formatMoney, getCartUnitPrice, hasActiveDiscount, toNumber } from '@/lib/pricing';
 
 interface CartItem {
-    id: string;
+    id?: string;
+    cart_item_id?: string;
     product_id: string;
+    variant_id?: string;
+    variant_name?: string;
+    variant_specs?: Record<string, string | number | boolean>;
+    variant_sku?: string | null;
     quantity: number;
     name: string;
     price: string | number;
@@ -22,7 +27,6 @@ interface CartItem {
     installment_enabled: boolean;
     installment_duration_months: number;
     minimum_deposit_percentage: number;
-    minimum_wallet_balance_required: number;
 }
 
 interface UserProfile {
@@ -247,13 +251,22 @@ export default function CheckoutPage() {
                                 </h2>
                                 <ul className="space-y-4">
                                     {cartItems.map(item => (
-                                        <li key={item.id} className="flex items-center gap-4 p-3 rounded-2xl bg-white/4 border border-white/6 hover:border-white/12 transition-colors">
+                                        <li key={item.cart_item_id ?? item.id ?? `${item.product_id}-${item.variant_id ?? 'default'}`} className="flex items-center gap-4 p-3 rounded-2xl bg-white/4 border border-white/6 hover:border-white/12 transition-colors">
                                             <div className="relative w-14 h-14 flex-shrink-0 rounded-xl bg-white/5 p-1 overflow-hidden">
                                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                                 <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold truncate">{item.name}</p>
+                                                {item.variant_name && item.variant_name !== 'Default' && (
+                                                    <p className="text-blue-200 text-sm truncate">{item.variant_name}</p>
+                                                )}
+                                                {item.variant_specs && Object.keys(item.variant_specs).length > 0 && (
+                                                    <p className="text-white/45 text-xs truncate">
+                                                        {Object.entries(item.variant_specs).map(([key, value]) => `${key}: ${value}`).join(' · ')}
+                                                    </p>
+                                                )}
+                                                {item.variant_sku && <p className="text-white/35 text-xs truncate">SKU: {item.variant_sku}</p>}
                                                 <p className="text-white/50 text-sm">Qty: {item.quantity}</p>
                                                 {item.installment_enabled && (
                                                     <span className="inline-block mt-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-full px-2 py-0.5">

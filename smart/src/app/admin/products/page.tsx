@@ -16,6 +16,7 @@ interface Product {
   discount_amount: string | number;
   discounted_price: string | number;
   effective_price: string | number;
+  display_order?: number | null;
   image?: string;
   image_url?: string | null;
   image_public_id?: string | null;
@@ -30,6 +31,8 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [orderSaving, setOrderSaving] = useState(false);
+  const [draggingProductId, setDraggingProductId] = useState<string | null>(null);
   const router = useRouter();
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -92,6 +95,86 @@ export default function AdminProductsPage() {
     return product.is_active === false ? 'inactive' : 'active';
   };
 
+  const handleDisplayOrderUpdate = async (id: string, rawValue: string) => {
+    const trimmed = rawValue.trim();
+    const nextOrder = trimmed === '' ? null : Number(trimmed);
+
+    if (nextOrder !== null && (!Number.isFinite(nextOrder) || nextOrder < 1)) {
+      setError('Display order must be a positive number, or empty to clear it.');
+      return;
+    }
+
+    setOrderSaving(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ display_order: nextOrder }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to update display order.');
+      }
+      await fetchProducts();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Failed to update display order.');
+    } finally {
+      setOrderSaving(false);
+    }
+  };
+
+  const handleDrop = async (targetId: string) => {
+    if (!draggingProductId || draggingProductId === targetId) {
+      setDraggingProductId(null);
+      return;
+    }
+
+    const fromIndex = products.findIndex((product) => product.id === draggingProductId);
+    const toIndex = products.findIndex((product) => product.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) {
+      setDraggingProductId(null);
+      return;
+    }
+
+    const nextProducts = [...products];
+    const [moved] = nextProducts.splice(fromIndex, 1);
+    nextProducts.splice(toIndex, 0, moved);
+    setProducts(nextProducts);
+    setDraggingProductId(null);
+
+    setOrderSaving(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const product_ids = nextProducts
+        .filter((product) => getStatus(product) === 'active')
+        .map((product) => product.id);
+      const res = await fetch(`${API_URL}/admin/products/display-order`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ product_ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to save dragged product order.');
+      }
+      await fetchProducts();
+    } catch (dropError) {
+      setError(dropError instanceof Error ? dropError.message : 'Failed to save dragged product order.');
+      await fetchProducts();
+    } finally {
+      setOrderSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#07070a] text-white flex items-center justify-center">
@@ -107,8 +190,9 @@ export default function AdminProductsPage() {
           <div>
             <h1 className="text-3xl font-bold">Product Management</h1>
             <p className="mt-1 text-sm text-white/45">
-              Manage product images, order, and thumbnails from the dedicated product forms.
+              Manage product images, homepage display order, and thumbnails from the dedicated product forms.
             </p>
+            {orderSaving && <p className="mt-2 text-xs text-blue-300">Saving display order...</p>}
           </div>
           <Link
             href="/admin/products/new"
@@ -133,6 +217,7 @@ export default function AdminProductsPage() {
                 <tr className="border-b border-white/20">
                   <th className="text-left py-3 px-4">Product</th>
                   <th className="text-left py-3 px-4">Category</th>
+                  <th className="text-left py-3 px-4">Display Order</th>
                   <th className="text-left py-3 px-4">Price</th>
                   <th className="text-left py-3 px-4">Stock</th>
                   <th className="text-left py-3 px-4">Status</th>
@@ -145,7 +230,15 @@ export default function AdminProductsPage() {
                   const imageCount = product.image_urls?.length || (product.image_url ? 1 : 0);
 
                   return (
-                    <tr key={product.id} className="border-b border-white/10">
+                    <tr
+                      key={product.id}
+                      draggable={getStatus(product) === 'active'}
+                      onDragStart={() => setDraggingProductId(product.id)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => handleDrop(product.id)}
+                      onDragEnd={() => setDraggingProductId(null)}
+                      className={`border-b border-white/10 ${draggingProductId === product.id ? 'opacity-50' : ''}`}
+                    >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <img
@@ -162,6 +255,23 @@ export default function AdminProductsPage() {
                         </div>
                       </td>
                       <td className="py-3 px-4">{product.category || 'Uncategorized'}</td>
+                      <td className="py-3 px-4">
+                        <input
+                          key={`${product.id}-${product.display_order ?? 'empty'}`}
+                          type="number"
+                          min="1"
+                          defaultValue={product.display_order ?? ''}
+                          disabled={orderSaving}
+                          onBlur={(event) => handleDisplayOrderUpdate(product.id, event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur();
+                            }
+                          }}
+                          className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-blue-400 disabled:opacity-60"
+                          placeholder="-"
+                        />
+                      </td>
                       <td className="py-3 px-4">
                         {hasActiveDiscount(product) ? (
                           <div className="space-y-1">

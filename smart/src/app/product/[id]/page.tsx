@@ -27,11 +27,10 @@ const mapProducts = (list: any[]): Product[] =>
     image: p.image_url || p.image || getGalleryImages(p)[0] || '/images/smartwatch.png',
     image_urls: getGalleryImages(p),
     gradient: p.gradient || 'from-blue-500/20 to-purple-500/20',
-    price: p.price
-      ? typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '')
-        ? `₦${Number(p.price).toLocaleString()}`
-        : p.price.startsWith('₦') ? p.price : `₦${p.price}`
-      : '₦N/A',
+    price: p.price ?? 0,
+    category: p.category || 'Uncategorized',
+    description: p.description ?? '',
+    display_order: p.display_order ?? null,
     installment_enabled: p.installment_enabled === true,
     installment_duration_months: p.installment_duration_months,
     minimum_deposit_percentage: p.minimum_deposit_percentage,
@@ -70,15 +69,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
     try {
       const res = await fetch(`${API_URL}/products/${productId}`, { headers });
-      console.log('API response status:', res.status);
       if (res.ok) {
         const data = await res.json();
-        console.log('API response data:', data);
         const mapped = mapProducts([data.product])[0];
         setProduct(mapped);
         return mapped;
-      } else {
-        console.log('API response not ok:', res.status);
       }
     } catch (error) {
       console.error('Error fetching product:', error);
@@ -87,13 +82,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     // Fallback to local products - try to find by ID, or use first product as fallback
     const localProduct = localProducts.find(p => p.id === productId);
     if (localProduct) {
-      console.log('Found local product by ID:', localProduct);
       setProduct(localProduct);
       return localProduct;
     }
     
     // If API failed and no local ID match, try to fetch all products first and find the product
-    console.log('No local product found by ID, fetching all products to find match');
     try {
       const res = await fetch(`${API_URL}/products`, { headers });
       if (res.ok) {
@@ -101,7 +94,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         const allMapped = mapProducts(data.products || []);
         const foundProduct = allMapped.find(p => p.id === productId);
         if (foundProduct) {
-          console.log('Found product in all products:', foundProduct);
           setProduct(foundProduct);
           return foundProduct;
         }
@@ -111,7 +103,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     }
     
     // If still no match, use the first local product as fallback
-    console.log('No product found anywhere, using first local product as fallback');
     if (localProducts.length > 0) {
       setProduct(localProducts[0]);
       return localProducts[0];
@@ -257,7 +248,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const selectedVariant = product?.variants?.find((variant) => variant.id === selectedVariantId) ?? product?.variants?.[0];
   const displayPrice = selectedVariant?.effective_price ?? product?.effective_price ?? product?.discounted_price ?? product?.price;
   const originalPrice = selectedVariant?.price ?? product?.price;
-  const displayStock = selectedVariant?.stock ?? product?.stock ?? 0;
+  const displayStock = selectedVariant?.stock ?? product?.stock ?? null;
   const displayDiscountPercentage = selectedVariant?.discount_percentage ?? product?.discount_percentage;
   const isDiscounted = selectedVariant ? hasActiveDiscount(selectedVariant) : (product ? hasActiveDiscount(product) : false);
 
@@ -648,7 +639,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                         className={`rounded-xl border px-3 py-3 text-left transition ${selectedVariant?.id === variant.id ? 'border-blue-400 bg-blue-500/15 text-white' : 'border-white/10 bg-white/5 text-white/70 hover:border-white/25'}`}
                       >
                         <span className="block text-sm font-semibold">{variant.name}</span>
-                        <span className="mt-1 block text-xs text-white/45">{formatMoney(variant.effective_price ?? variant.price)} · {variant.stock} in stock</span>
+                        <span className="mt-1 block text-xs text-white/45">
+                          {formatMoney(variant.effective_price ?? variant.price)}
+                          {typeof variant.stock === 'number' ? ` · ${variant.stock} in stock` : ''}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -672,7 +666,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              <p className="mb-4 text-sm text-white/55">Stock available: <span className="font-semibold text-white">{displayStock}</span></p>
+              {typeof displayStock === 'number' && (
+                <p className="mb-4 text-sm text-white/55">Stock available: <span className="font-semibold text-white">{displayStock}</span></p>
+              )}
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">

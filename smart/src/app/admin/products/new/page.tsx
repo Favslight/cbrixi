@@ -24,6 +24,7 @@ interface FormState {
   price: string;
   discount_enabled: boolean;
   discount_percentage: string;
+  display_order: string;
   description: string;
   images: File[];
   imagePreviews: string[];
@@ -46,6 +47,7 @@ export default function NewProduct() {
     price: '',
     discount_enabled: false,
     discount_percentage: '',
+    display_order: '',
     description: '',
     images: [],
     imagePreviews: [],
@@ -201,14 +203,22 @@ export default function NewProduct() {
     name: variant.name.trim(),
     specs: Object.fromEntries(Object.entries({ ram: variant.ram, rom: variant.rom, color: variant.color }).filter(([, value]) => value.trim() !== '')),
     price: toNumber(variant.price),
-    stock: toNumber(variant.stock),
+    ...(variant.stock.trim() ? { stock: toNumber(variant.stock) } : {}),
     ...(variant.sku.trim() ? { sku: variant.sku.trim() } : {}),
   }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price.trim() || !form.stock.trim() || !form.description.trim() || form.images.length === 0) {
+    if (!form.name.trim() || !form.description.trim() || form.images.length === 0) {
       setError('Please fill in all required fields and upload at least one image.');
+      return;
+    }
+    if (!form.price.trim() && form.variants.length === 0) {
+      setError('Enter a price, or add variants so the backend can derive the product price.');
+      return;
+    }
+    if (!form.stock.trim() && form.variants.length === 0) {
+      setError('Enter stock quantity, or add variants with their own stock values.');
       return;
     }
     if (form.variants.length > 0) {
@@ -239,7 +249,12 @@ export default function NewProduct() {
 
       const formData = new FormData();
       formData.append('name', form.name);
-      formData.append('price', form.price);
+      if (form.price.trim()) {
+        formData.append('price', form.price);
+      }
+      if (form.display_order.trim()) {
+        formData.append('display_order', form.display_order);
+      }
       formData.append('discount_enabled', String(form.discount_enabled));
       if (form.discount_enabled) {
         formData.append('discount_percentage', form.discount_percentage);
@@ -325,8 +340,8 @@ export default function NewProduct() {
 
         {/* Price */}
         <div>
-          <label className={labelClass}>Price <span className="text-red-400">*</span></label>
-          <input name="price" value={form.price} onChange={handleChange} placeholder="e.g. 299" className={inputClass} required />
+          <label className={labelClass}>Price {form.variants.length === 0 && <span className="text-red-400">*</span>}</label>
+          <input name="price" value={form.price} onChange={handleChange} placeholder="e.g. 299" className={inputClass} required={form.variants.length === 0} />
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
@@ -365,6 +380,12 @@ export default function NewProduct() {
             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all text-sm appearance-none cursor-pointer">
             {CATEGORIES.map((c) => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
           </select>
+        </div>
+
+        <div>
+          <label className={labelClass}>Display Position</label>
+          <input name="display_order" type="number" value={form.display_order} onChange={handleChange} placeholder="e.g. 1" className={inputClass} min="1" />
+          <p className="mt-2 text-xs text-white/40">Optional homepage order. Products without a position appear after ordered products.</p>
         </div>
 
         {/* Description */}

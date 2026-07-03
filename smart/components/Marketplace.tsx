@@ -66,11 +66,10 @@ export default function Marketplace() {
       default_variant_id: p.default_variant_id ?? getActiveVariants(p)[0]?.id ?? null,
       variant_price_min: p.variant_price_min,
       variant_price_max: p.variant_price_max,
-      price: p.price
-        ? typeof p.price === 'number' || (!isNaN(Number(p.price)) && p.price !== '')
-          ? `₦${Number(p.price).toLocaleString()}`
-          : p.price.startsWith('₦') ? p.price : `₦${p.price}`
-        : '₦N/A',
+      display_order: p.display_order ?? null,
+      price: p.price ?? 0,
+      category: p.category || 'Uncategorized',
+      description: p.description ?? '',
     }));
 
   const fetchAllProducts = async () => {

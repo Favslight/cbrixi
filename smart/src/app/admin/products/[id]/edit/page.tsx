@@ -14,11 +14,23 @@ interface ExistingProductImage {
   public_id: string;
 }
 
+interface ProductVariantForm {
+  id?: string;
+  name: string;
+  ram: string;
+  rom: string;
+  color: string;
+  sku: string;
+  price: string;
+  stock: string;
+}
+
 interface EditFormState {
   name: string;
   price: string;
   discount_enabled: boolean;
   discount_percentage: string;
+  display_order: string;
   description: string;
   category: string;
   stock: string;
@@ -32,6 +44,7 @@ interface EditFormState {
   newImages: File[];
   newImagePreviews: string[];
   thumbnailIndex: number;
+  variants: ProductVariantForm[];
 }
 
 export default function EditProductPage() {
@@ -45,6 +58,7 @@ export default function EditProductPage() {
     price: '',
     discount_enabled: false,
     discount_percentage: '',
+    display_order: '',
     description: '',
     category: 'Smart Watches',
     stock: '',
@@ -58,6 +72,7 @@ export default function EditProductPage() {
     newImages: [],
     newImagePreviews: [],
     thumbnailIndex: 0,
+    variants: [],
   });
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
@@ -94,12 +109,28 @@ export default function EditProductPage() {
         }));
         const primaryImageUrl = String(product.image_url || product.image || imageUrls[0] || '');
         const thumbnailIndex = Math.max(0, existingImages.findIndex((image) => image.url === primaryImageUrl));
+        const variants = (Array.isArray(product.variants) ? product.variants : [])
+          .filter((variant: any) => variant && variant.is_active !== false)
+          .map((variant: any) => {
+            const specs = variant.specs && typeof variant.specs === 'object' ? variant.specs : {};
+            return {
+              id: variant.id ? String(variant.id) : undefined,
+              name: String(variant.name ?? ''),
+              ram: String(specs.ram ?? ''),
+              rom: String(specs.rom ?? specs.storage ?? ''),
+              color: String(specs.color ?? ''),
+              sku: String(variant.sku ?? ''),
+              price: String(variant.price ?? ''),
+              stock: variant.stock === undefined || variant.stock === null ? '' : String(variant.stock),
+            };
+          });
 
         setForm({
           name: String(product.name ?? ''),
           price: String(product.price ?? ''),
           discount_enabled: product.discount_enabled === true,
           discount_percentage: String(product.discount_percentage ?? ''),
+          display_order: product.display_order === undefined || product.display_order === null ? '' : String(product.display_order),
           description: String(product.description ?? ''),
           category: String(product.category ?? 'Smart Watches'),
           stock: String(product.stock ?? ''),
@@ -113,6 +144,7 @@ export default function EditProductPage() {
           newImages: [],
           newImagePreviews: [],
           thumbnailIndex,
+          variants,
         });
       } catch {
         setError('Failed to load product.');
@@ -282,6 +314,32 @@ export default function EditProductPage() {
     });
   };
 
+  const addVariant = () => setForm((prev) => ({
+    ...prev,
+    variants: [...prev.variants, { name: '', ram: '', rom: '', color: '', sku: '', price: '', stock: '' }],
+  }));
+
+  const updateVariant = (index: number, field: keyof ProductVariantForm, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((variant, variantIndex) => variantIndex === index ? { ...variant, [field]: value } : variant),
+    }));
+  };
+
+  const removeVariant = (index: number) => setForm((prev) => ({
+    ...prev,
+    variants: prev.variants.filter((_, variantIndex) => variantIndex !== index),
+  }));
+
+  const buildVariantsPayload = () => form.variants.map((variant) => ({
+    ...(variant.id ? { id: variant.id } : {}),
+    name: variant.name.trim(),
+    specs: Object.fromEntries(Object.entries({ ram: variant.ram, rom: variant.rom, color: variant.color }).filter(([, value]) => value.trim() !== '')),
+    price: toNumber(variant.price),
+    ...(variant.stock.trim() ? { stock: toNumber(variant.stock) } : {}),
+    ...(variant.sku.trim() ? { sku: variant.sku.trim() } : {}),
+  }));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -304,6 +362,13 @@ export default function EditProductPage() {
         return;
       }
     }
+    if (form.variants.length > 0) {
+      const invalidVariant = form.variants.some((variant) => !variant.name.trim() || toNumber(variant.price) <= 0 || (variant.stock.trim() !== '' && toNumber(variant.stock) < 0));
+      if (invalidVariant) {
+        setError('Every variant needs a name, valid price, and optional non-negative stock value.');
+        return;
+      }
+    }
     const finalImageCount = form.existingImages.length + form.newImages.length;
     if (finalImageCount < 1 || finalImageCount > MAX_PRODUCT_IMAGES) {
       setError(`A product must have between 1 and ${MAX_PRODUCT_IMAGES} images.`);
@@ -317,6 +382,9 @@ export default function EditProductPage() {
       const formData = new FormData();
       formData.append('name', form.name);
       formData.append('price', form.price);
+      if (form.display_order.trim()) {
+        formData.append('display_order', form.display_order);
+      }
       formData.append('discount_enabled', String(form.discount_enabled));
       if (form.discount_enabled) {
         formData.append('discount_percentage', form.discount_percentage);
@@ -324,6 +392,9 @@ export default function EditProductPage() {
       formData.append('description', form.description);
       formData.append('category', form.category);
       if (form.stock.trim() !== '') formData.append('stock', form.stock);
+      if (form.variants.length > 0) {
+        formData.append('variants', JSON.stringify(buildVariantsPayload()));
+      }
       formData.append('installment_enabled', String(form.installment_enabled));
       if (form.installment_enabled) {
         formData.append('minimum_deposit_percentage', form.minimum_deposit_percentage);
@@ -408,6 +479,12 @@ export default function EditProductPage() {
           <input name="price" value={form.price} onChange={handleChange} className={inputClass} required />
         </div>
 
+        <div>
+          <label className={labelClass}>Display Position</label>
+          <input name="display_order" type="number" value={form.display_order} onChange={handleChange} placeholder="e.g. 1" className={inputClass} min="1" />
+          <p className="mt-2 text-xs text-white/40">Optional homepage order. Clear it from the product table if this product should leave the ordered homepage group.</p>
+        </div>
+
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
           <label className="flex items-center justify-between gap-3 text-sm font-medium text-white/70">
             <span>Temporary Discount</span>
@@ -453,6 +530,36 @@ export default function EditProductPage() {
         <div>
           <label className={labelClass}>Stock Quantity</label>
           <input name="stock" type="number" value={form.stock} onChange={handleChange} className={inputClass} min="0" />
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white/80">Product Variants</h2>
+              <p className="text-xs text-white/40">Edit the active variant list. Omitted saved variants are deactivated by the backend.</p>
+            </div>
+            <button type="button" onClick={addVariant} className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600">Add variant</button>
+          </div>
+          {form.variants.length === 0 && <p className="text-xs text-white/45">No variants added. The product price is used as the default option.</p>}
+          {form.variants.map((variant, index) => (
+            <div key={variant.id ?? index} className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/50">Variant {index + 1}{index === 0 ? ' · default' : ''}</span>
+                <button type="button" onClick={() => removeVariant(index)} className="text-xs text-red-300 hover:text-red-200">Remove</button>
+              </div>
+              <input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} placeholder="Name e.g. 4GB RAM / 128GB ROM" className={inputClass} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <input value={variant.ram} onChange={(event) => updateVariant(index, 'ram', event.target.value)} placeholder="RAM" className={inputClass} />
+                <input value={variant.rom} onChange={(event) => updateVariant(index, 'rom', event.target.value)} placeholder="ROM/Storage" className={inputClass} />
+                <input value={variant.color} onChange={(event) => updateVariant(index, 'color', event.target.value)} placeholder="Color" className={inputClass} />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <input value={variant.price} onChange={(event) => updateVariant(index, 'price', event.target.value)} placeholder="Variant price" className={inputClass} />
+                <input value={variant.stock} onChange={(event) => updateVariant(index, 'stock', event.target.value)} placeholder="Stock" type="number" min="0" className={inputClass} />
+                <input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} placeholder="SKU" className={inputClass} />
+              </div>
+            </div>
+          ))}
         </div>
 
         <div>

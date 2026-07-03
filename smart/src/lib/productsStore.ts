@@ -6,7 +6,7 @@ export interface ProductVariant extends ProductDiscountFields {
   name: string;
   specs?: Record<string, string | number | boolean>;
   sku?: string | null;
-  stock: number;
+  stock?: number;
   is_default?: boolean;
   is_active?: boolean;
   sort_order?: number;
@@ -31,6 +31,7 @@ export interface Product extends ProductDiscountFields {
   image_urls?: string[];
   image_public_ids?: string[];
   image_url?: string | null;
+  display_order?: number | null;
   has_variants?: boolean;
   default_variant_id?: string | null;
   variant_price_min?: string | number;

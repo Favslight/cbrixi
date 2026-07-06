@@ -2,35 +2,64 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  type AdminOrderDisplaySource,
+  type AdminOrderItemDisplay,
+  type AdminPaymentOrderDisplaySource,
+  displayName,
+  itemLabel,
+  itemLineTotal,
+  itemUnitPrice,
+  orderItems,
+  orderSummary,
+  productsText,
+  shortId,
+  totalQuantity,
+  variantsText,
+} from '@/lib/adminOrderDisplay';
+import { formatMoney } from '@/lib/pricing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
 type PaymentTab = 'pending' | 'approved' | 'rejected';
 
-interface AdminPayment {
+interface AdminPayment extends AdminPaymentOrderDisplaySource {
   id: string;
-  reference: string;
+  reference?: string | null;
   amount: string | number;
-  email?: string;
+  email?: string | null;
   payment_method: string;
   payment_mode?: string;
   payment_type?: string;
   payment_label?: string;
   total_amount?: string | number;
-  deposit_amount?: string | number;
+  deposit_amount?: string | number | null;
   paid_amount?: string | number;
   remaining_balance?: string | number;
-  external_email?: string;
+  external_email?: string | null;
   status: string;
   order_status?: string;
   order_id: string;
-  installment_id: string | null;
+  installment_id?: string | null;
   installment_number?: number | null;
   installment_due_date?: string | null;
+  installment_status?: string | null;
   created_at: string;
-  firstname: string;
-  lastname: string;
+  firstname?: string | null;
+  lastname?: string | null;
   user_id: string;
+  order?: (AdminOrderDisplaySource & {
+    id: string;
+    payment_mode?: string;
+    total_amount?: string | number;
+    deposit_amount?: string | number | null;
+    paid_amount?: string | number;
+    remaining_balance?: string | number;
+    status?: string;
+    external_email?: string | null;
+    order_items?: AdminOrderItemDisplay[];
+  }) | null;
+  order_items?: AdminOrderItemDisplay[];
 }
 
 const tabs: Array<{ key: PaymentTab; label: string; description: string }> = [
@@ -45,9 +74,6 @@ const Spinner = ({ sm }: { sm?: boolean }) => (
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
   </svg>
 );
-
-const fmt = (n: string | number | undefined) =>
-  `N${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const fmtDate = (d?: string | null) =>
   d
@@ -139,13 +165,19 @@ export default function AdminPaymentsPage() {
 
   const filtered = payments.filter((payment) => {
     const needle = search.toLowerCase();
-    return (
-      payment.reference?.toLowerCase().includes(needle) ||
-      `${payment.firstname ?? ''} ${payment.lastname ?? ''}`.toLowerCase().includes(needle) ||
-      payment.order_id?.toLowerCase().includes(needle) ||
-      payment.email?.toLowerCase().includes(needle) ||
-      payment.external_email?.toLowerCase().includes(needle)
-    );
+    const searchable = [
+      payment.reference,
+      displayName(payment),
+      payment.order_id,
+      payment.email,
+      payment.external_email,
+      getPaymentTitle(payment),
+      orderSummary(payment),
+      productsText(payment),
+      variantsText(payment),
+    ];
+
+    return searchable.some((value) => String(value ?? '').toLowerCase().includes(needle));
   });
 
   const activeTabMeta = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
@@ -164,7 +196,7 @@ export default function AdminPaymentsPage() {
           )}
         </div>
         <p className="text-white/40 text-sm leading-relaxed">
-          {activeTabMeta.description} <span className="text-white/60 tabular-nums">{fmt(totalAmount)}</span> total.
+          {activeTabMeta.description} <span className="text-white/60 tabular-nums">{formatMoney(totalAmount)}</span> total.
         </p>
       </motion.div>
 
@@ -191,8 +223,8 @@ export default function AdminPaymentsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard label={`${activeTabMeta.label} count`} value={payments.length} />
-        <StatCard label="Total amount" value={fmt(totalAmount)} />
-        <StatCard label="Customers" value={new Set(payments.map((payment) => payment.user_id)).size} />
+        <StatCard label="Total amount" value={formatMoney(totalAmount)} />
+        <StatCard label="Total items" value={payments.reduce((sum, payment) => sum + totalQuantity(payment), 0)} />
       </div>
 
       <div className="relative mb-6 max-w-sm">
@@ -202,7 +234,7 @@ export default function AdminPaymentsPage() {
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by reference, order, name, or email..."
+          placeholder="Search by payment, order, product, customer, or reference..."
           className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
         />
       </div>
@@ -253,14 +285,16 @@ export default function AdminPaymentsPage() {
           </div>
 
           <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
-            <table className="w-full text-sm min-w-[1180px]">
+            <table className="w-full text-sm min-w-[1480px]">
               <thead>
                 <tr className="border-b border-white/8 bg-white/3">
                   <th className="text-left px-5 py-3.5 text-white/40 font-medium">Customer</th>
-                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Reference</th>
-                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Amount</th>
                   <th className="text-left px-4 py-3.5 text-white/40 font-medium">Payment</th>
-                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Order Context</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Order</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Products</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Variants</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Amount</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Method</th>
                   <th className="text-left px-4 py-3.5 text-white/40 font-medium">Date</th>
                   <th className="px-4 py-3.5 text-right text-white/40 font-medium">Action</th>
                 </tr>
@@ -378,28 +412,30 @@ function PaymentRow({
       }}
       exit={{ opacity: 0, x: 12 }}
       transition={{ delay: index * 0.04 }}
-      className="border-b border-white/5 hover:bg-white/3 transition-colors"
+      className="border-b border-white/5 hover:bg-white/3 transition-colors align-top"
     >
       <td className="px-5 py-4">
-        <div>
-          <p className="text-white font-medium">{payment.firstname} {payment.lastname}</p>
-          <p className="text-white/40 text-xs break-all">{payment.email ?? payment.user_id}</p>
-        </div>
-      </td>
-      <td className="px-4 py-4">
-        <code className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-0.5 text-xs font-mono">
-          {payment.reference}
-        </code>
-      </td>
-      <td className="px-4 py-4">
-        <span className="text-white font-bold text-base">{fmt(payment.amount)}</span>
+        <p className="text-white font-medium">{displayName(payment)}</p>
+        <p className="text-white/40 text-xs break-all">{payment.email ?? payment.user_id}</p>
       </td>
       <td className="px-4 py-4">
         <PaymentTypeBadge payment={payment} />
-        {payment.installment_due_date && <p className="text-white/45 text-xs mt-2">Due {fmtDate(payment.installment_due_date)}</p>}
+        <p className="text-white/45 text-xs mt-2 break-all">Reference: {payment.reference || 'N/A'}</p>
       </td>
       <td className="px-4 py-4">
-        <OrderContext payment={payment} />
+        <p className="text-white font-semibold max-w-[240px]">{orderSummary(payment)}</p>
+        <p className="text-white/35 text-xs font-mono break-all mt-1">ID: {payment.order_id}</p>
+      </td>
+      <td className="px-4 py-4 text-white/70 max-w-[240px]">{productsText(payment)}</td>
+      <td className="px-4 py-4 text-white/60 max-w-[220px]">{variantsText(payment)}</td>
+      <td className="px-4 py-4">
+        <p className="text-white font-bold text-base">{formatMoney(payment.amount)}</p>
+        {payment.total_amount !== undefined && <p className="text-white/50 text-xs">Total: {formatMoney(payment.total_amount)}</p>}
+        {payment.remaining_balance !== undefined && <p className="text-white/50 text-xs">Balance: {formatMoney(payment.remaining_balance)}</p>}
+      </td>
+      <td className="px-4 py-4 text-white/55 text-xs">
+        <p>{payment.payment_method}</p>
+        {payment.external_email && <p className="text-blue-300 break-all mt-1">Cbrilliance: {payment.external_email}</p>}
       </td>
       <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(payment.created_at)}</td>
       <td className="px-4 py-4 text-right">
@@ -426,17 +462,18 @@ function PaymentSummary({ payment }: { payment: AdminPayment }) {
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-white font-medium">{payment.firstname} {payment.lastname}</p>
+          <p className="text-white font-medium">{displayName(payment)}</p>
           <p className="text-white/40 text-xs mt-0.5 break-all">{payment.email ?? payment.user_id}</p>
         </div>
         <StatusBadge status={payment.status} />
       </div>
-      <p className="text-white font-bold text-lg tabular-nums">{fmt(payment.amount)}</p>
+      <p className="text-white font-bold text-lg tabular-nums">{formatMoney(payment.amount)}</p>
       <code className="inline-block text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1 font-mono break-all max-w-full">
-        {payment.reference}
+        {payment.reference || 'No reference'}
       </code>
       <PaymentTypeBadge payment={payment} />
       <OrderContext payment={payment} />
+      <OrderItemsList items={orderItems(payment)} />
       <p className="text-white/50 text-xs">{fmtDate(payment.created_at)}</p>
     </div>
   );
@@ -466,7 +503,17 @@ function PaymentActions({
 
   if (currentConfirm) {
     return (
-      <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'items-center justify-end'} gap-2`}>
+      <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-stretch min-w-[320px]'} gap-2 text-left`}>
+        <div className="rounded-xl border border-white/8 bg-black/20 p-3 space-y-2">
+          <p className="text-white text-xs font-semibold">{getPaymentTitle(payment)}</p>
+          <div className="grid grid-cols-1 gap-1 text-[11px] text-white/50">
+            <p>Order: <span className="text-white/75">{orderSummary(payment)}</span></p>
+            <p>Reference: <span className="text-white/75">{payment.reference || 'N/A'}</span></p>
+            <p>Amount: <span className="text-white/75">{formatMoney(payment.amount)}</span></p>
+            <p>Method: <span className="text-white/75">{payment.payment_method}</span></p>
+          </div>
+          <OrderItemsList items={orderItems(payment)} compact />
+        </div>
         <button
           type="button"
           onClick={() => onAction(payment.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject')}
@@ -522,14 +569,41 @@ function PaymentTypeBadge({ payment }: { payment: AdminPayment }) {
 function OrderContext({ payment }: { payment: AdminPayment }) {
   return (
     <div className="space-y-1 text-xs">
-      <p className="text-white/45 break-all">Order: {payment.order_id}</p>
+      <p className="text-white font-semibold">{orderSummary(payment)}</p>
+      <p className="text-white/45 break-all">Order ID: {shortId(payment.order_id)}</p>
+      <p className="text-white/50">Products: {productsText(payment)}</p>
+      <p className="text-white/50">Variants: {variantsText(payment)}</p>
+      <p className="text-white/50">Quantity: {totalQuantity(payment)}</p>
       {payment.external_email && <p className="text-blue-300 break-all">Cbrilliance: {payment.external_email}</p>}
-      {payment.total_amount !== undefined && <p className="text-white/50">Total: {fmt(payment.total_amount)}</p>}
-      {payment.deposit_amount !== undefined && <p className="text-white/50">Deposit: {fmt(payment.deposit_amount)}</p>}
-      {payment.paid_amount !== undefined && <p className="text-white/50">Paid: {fmt(payment.paid_amount)}</p>}
-      {payment.remaining_balance !== undefined && <p className="text-white/50">Balance: {fmt(payment.remaining_balance)}</p>}
+      {payment.total_amount !== undefined && <p className="text-white/50">Total: {formatMoney(payment.total_amount)}</p>}
+      {payment.deposit_amount !== undefined && <p className="text-white/50">Deposit: {formatMoney(payment.deposit_amount)}</p>}
+      {payment.paid_amount !== undefined && <p className="text-white/50">Paid: {formatMoney(payment.paid_amount)}</p>}
+      {payment.remaining_balance !== undefined && <p className="text-white/50">Balance: {formatMoney(payment.remaining_balance)}</p>}
       {payment.order_status && <p className="text-white/40">Order status: {payment.order_status}</p>}
       <p className="text-white/40">Method: {payment.payment_method}</p>
+    </div>
+  );
+}
+
+function OrderItemsList({ items, compact }: { items: AdminOrderItemDisplay[]; compact?: boolean }) {
+  if (!items.length) {
+    return <p className="text-white/30 text-xs italic">No item rows returned.</p>;
+  }
+
+  return (
+    <div className={`space-y-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+      {items.map((item, index) => (
+        <div key={item.order_item_id ?? item.id ?? `${itemLabel(item)}-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-white font-medium">{itemLabel(item)}</p>
+            <p className="text-white/70 shrink-0">x{item.quantity ?? 0}</p>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-white/45">
+            <span>Unit: {formatMoney(itemUnitPrice(item))}</span>
+            <span>Line: {formatMoney(itemLineTotal(item))}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -28,6 +28,11 @@ export const metadata: Metadata = {
     description: "Discover the latest smart gadgets designed to upgrade your lifestyle.",
     type: "website",
   },
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    shortcut: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

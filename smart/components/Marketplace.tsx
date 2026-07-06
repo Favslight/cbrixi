@@ -13,15 +13,15 @@ function ProductPrice({ product, variant = 'card' }: { product: Product; variant
 
   return (
     <div className={isModal ? 'flex flex-wrap items-center gap-2' : 'flex w-full flex-col items-center gap-1 text-center'}>
-      <strong className={isModal ? 'text-xl sm:text-2xl text-blue-300' : 'text-[15px] font-extrabold text-white dark:text-gray-950'}>
+      <strong className={isModal ? 'text-xl sm:text-2xl text-blue-300' : 'text-[15px] font-extrabold text-white'}>
         {formatMoney(getSellingPrice(product))}
       </strong>
       {discounted ? (
         <>
-          <span className={isModal ? 'text-sm text-white/45 line-through' : 'text-xs font-semibold text-gray-400 dark:text-gray-500 line-through'}>
+          <span className={isModal ? 'text-sm text-white/45 line-through' : 'text-xs font-semibold text-white/45 line-through'}>
             {formatMoney(product.price)}
           </span>
-          <span className={isModal ? 'rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-bold text-emerald-200' : 'rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300 dark:text-emerald-700'}>
+          <span className={isModal ? 'rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-bold text-emerald-200' : 'rounded-full border border-emerald-300/35 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100'}>
             {Number(product.discount_percentage)}% OFF
           </span>
         </>
@@ -473,19 +473,19 @@ export default function Marketplace() {
                 whileHover={{ y: -3 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 onClick={() => router.push(`/product/${product.id}`)}
-                className="group flex h-[330px] cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/10 bg-gray-950/95 shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition-all duration-300 hover:border-cyan-300/45 hover:shadow-[0_16px_42px_rgba(56,189,248,0.18)] dark:border-gray-200 dark:bg-white dark:shadow-[0_10px_28px_rgba(15,23,42,0.08)] dark:hover:border-indigo-300 sm:h-[350px] lg:h-[360px]"
+                className="group flex h-[330px] cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-[0_12px_34px_rgba(8,47,73,0.18)] transition-all duration-300 hover:border-cyan-300/70 hover:shadow-[0_18px_48px_rgba(14,116,144,0.22)] sm:h-[350px] lg:h-[360px]"
               >
                 <div className="flex h-[132px] w-full flex-shrink-0 items-center justify-center bg-white p-4 sm:h-[145px] sm:p-5 lg:h-[150px]">
                   <img src={product.image} alt={product.name} className="h-full w-full object-contain object-center transition-transform duration-300 group-hover:scale-[1.03]" />
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col px-3 py-3 text-center sm:px-4 sm:py-3.5">
+                <div className="flex min-h-0 flex-1 flex-col border-t border-cyan-200/30 bg-[linear-gradient(135deg,#10243d_0%,#0f5261_52%,#291759_100%)] px-3 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] sm:px-4 sm:py-3.5">
                   <h3
-                    className="mb-2 h-10 overflow-hidden text-[13px] font-bold leading-5 text-white dark:text-gray-950 sm:text-[14px]"
+                    className="mb-2 h-10 overflow-hidden text-[13px] font-bold leading-5 text-white sm:text-[14px]"
                     style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
                   >
                     {product.name}
                   </h3>
-                  <p className="mb-2 h-4 truncate text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300/85 dark:text-indigo-600">{product.category}</p>
+                  <p className="mb-2 h-4 truncate text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100/85">{product.category}</p>
                   <div className="flex-grow" />
                   <ProductPrice product={product} />
                   <button

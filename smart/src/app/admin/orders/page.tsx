@@ -2,31 +2,43 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  type AdminOrderDisplaySource,
+  type AdminOrderItemDisplay,
+  displayName,
+  itemLabel,
+  itemLineTotal,
+  itemUnitPrice,
+  orderSummary,
+  productsText,
+  shortId,
+  totalQuantity,
+  variantsText,
+} from '@/lib/adminOrderDisplay';
+import { formatMoney } from '@/lib/pricing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
 type OrderTab = 'pending' | 'approved' | 'rejected';
 
-interface AdminOrder {
+interface AdminOrder extends AdminOrderDisplaySource {
   id: string;
   user_id: string;
-  user_email?: string;
-  firstname?: string;
-  lastname?: string;
   total_amount: string | number;
-  deposit_amount?: string | number;
-  remaining_balance?: string | number;
-  paid_amount?: string | number;
+  deposit_amount?: string | number | null;
+  remaining_balance?: string | number | null;
+  paid_amount?: string | number | null;
   payment_mode: string;
   status: string;
-  external_email?: string;
+  external_email?: string | null;
   external_email_exists?: boolean;
-  verified_user_id?: string;
-  verified_email?: string;
-  verified_firstname?: string;
-  verified_lastname?: string;
+  verified_user_id?: string | null;
+  verified_email?: string | null;
+  verified_firstname?: string | null;
+  verified_lastname?: string | null;
   created_at: string;
   updated_at?: string;
+  order_items?: AdminOrderItemDisplay[];
 }
 
 const tabs: Array<{ key: OrderTab; label: string; description: string }> = [
@@ -41,9 +53,6 @@ const Spinner = ({ sm }: { sm?: boolean }) => (
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
   </svg>
 );
-
-const fmt = (n: string | number | undefined) =>
-  `N${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const fmtDate = (d?: string | null) =>
   d
@@ -126,14 +135,20 @@ export default function AdminOrdersPage() {
 
   const filtered = orders.filter((order) => {
     const needle = search.toLowerCase();
-    return (
-      order.id.toLowerCase().includes(needle) ||
-      order.user_id.toLowerCase().includes(needle) ||
-      order.user_email?.toLowerCase().includes(needle) ||
-      order.external_email?.toLowerCase().includes(needle) ||
-      order.verified_email?.toLowerCase().includes(needle) ||
-      `${order.firstname ?? ''} ${order.lastname ?? ''}`.toLowerCase().includes(needle)
-    );
+    const searchable = [
+      order.id,
+      order.user_id,
+      order.user_email,
+      order.email,
+      order.external_email,
+      order.verified_email,
+      displayName(order),
+      orderSummary(order),
+      productsText(order),
+      variantsText(order),
+    ];
+
+    return searchable.some((value) => String(value ?? '').toLowerCase().includes(needle));
   });
 
   const activeTabMeta = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
@@ -177,8 +192,8 @@ export default function AdminOrdersPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 sm:mb-8">
         <StatCard label={`${activeTabMeta.label} count`} value={orders.length} />
-        <StatCard label="Total value" value={fmt(totalValue)} />
-        <StatCard label="Installment orders" value={orders.filter((order) => order.payment_mode === 'INSTALLMENT').length} />
+        <StatCard label="Total value" value={formatMoney(totalValue)} />
+        <StatCard label="Total items" value={orders.reduce((sum, order) => sum + totalQuantity(order), 0)} />
       </div>
 
       <div className="relative mb-6 max-w-sm">
@@ -188,7 +203,7 @@ export default function AdminOrdersPage() {
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by order ID, user, or email..."
+          placeholder="Search by order, product, customer, variant, or email..."
           className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
         />
       </div>
@@ -239,13 +254,15 @@ export default function AdminOrdersPage() {
           </div>
 
           <div className="hidden lg:block rounded-2xl border border-white/8 overflow-x-auto">
-            <table className="w-full text-sm min-w-[1080px]">
+            <table className="w-full text-sm min-w-[1380px]">
               <thead>
                 <tr className="border-b border-white/8 bg-white/3">
-                  <th className="text-left px-5 py-3.5 text-white/40 font-medium">Order</th>
+                  <th className="text-left px-5 py-3.5 text-white/40 font-medium">Customer</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Order</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Products</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Variants</th>
+                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Qty</th>
                   <th className="text-left px-4 py-3.5 text-white/40 font-medium">Values</th>
-                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Cbrilliance Email</th>
-                  <th className="text-left px-4 py-3.5 text-white/40 font-medium">Verification</th>
                   <th className="text-left px-4 py-3.5 text-white/40 font-medium">Date</th>
                   <th className="px-4 py-3.5 text-right text-white/40 font-medium">Action</th>
                 </tr>
@@ -314,7 +331,7 @@ function OrderCard({
       transition={{ delay: index * 0.03 }}
       className={`rounded-2xl border border-white/8 bg-white/[0.03] p-4 ${successId === order.id ? 'ring-1 ring-green-500/30' : ''} ${rejectedId === order.id ? 'ring-1 ring-red-500/30' : ''}`}
     >
-      <OrderSummary order={order} />
+      <OrderSummaryBlock order={order} />
       {isPending && (
         <OrderActions
           order={order}
@@ -362,29 +379,22 @@ function OrderRow({
       }}
       exit={{ opacity: 0, x: 12 }}
       transition={{ delay: index * 0.04 }}
-      className="border-b border-white/5 hover:bg-white/3 transition-colors"
+      className="border-b border-white/5 hover:bg-white/3 transition-colors align-top"
     >
       <td className="px-5 py-4">
-        <div>
-          <p className="text-white font-medium font-mono text-xs break-all">{order.id}</p>
-          <p className="text-white/40 text-xs break-all mt-1">Buyer: {order.user_email ?? order.user_id}</p>
-          {(order.firstname || order.lastname) && <p className="text-white/50 text-xs mt-1">{order.firstname} {order.lastname}</p>}
-        </div>
+        <p className="text-white font-medium">{displayName(order)}</p>
+        <p className="text-white/40 text-xs break-all mt-1">{order.user_email ?? order.email ?? order.user_id}</p>
       </td>
+      <td className="px-4 py-4">
+        <p className="text-white font-semibold max-w-[260px]">{orderSummary(order)}</p>
+        <p className="text-white/35 text-xs font-mono break-all mt-1">ID: {order.id}</p>
+        {order.external_email && <p className="text-blue-300 text-xs break-all mt-1">Cbrilliance: {order.external_email}</p>}
+      </td>
+      <td className="px-4 py-4 text-white/70 max-w-[240px]">{productsText(order)}</td>
+      <td className="px-4 py-4 text-white/60 max-w-[220px]">{variantsText(order)}</td>
+      <td className="px-4 py-4 text-white font-semibold tabular-nums">{totalQuantity(order)}</td>
       <td className="px-4 py-4">
         <OrderValues order={order} />
-      </td>
-      <td className="px-4 py-4">
-        {order.external_email ? (
-          <span className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-0.5 text-xs break-all">
-            {order.external_email}
-          </span>
-        ) : (
-          <span className="text-white/30 text-xs italic">N/A</span>
-        )}
-      </td>
-      <td className="px-4 py-4">
-        <VerificationBlock order={order} />
       </td>
       <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(order.created_at)}</td>
       <td className="px-4 py-4 text-right">
@@ -406,19 +416,26 @@ function OrderRow({
   );
 }
 
-function OrderSummary({ order }: { order: AdminOrder }) {
+function OrderSummaryBlock({ order }: { order: AdminOrder }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-white font-mono text-xs break-all">{order.id}</p>
-          <p className="text-white/40 text-xs break-all mt-1">Buyer: {order.user_email ?? order.user_id}</p>
+          <p className="text-white font-semibold">{orderSummary(order)}</p>
+          <p className="text-white/40 text-xs mt-1">{displayName(order)}</p>
+          <p className="text-white/35 text-xs font-mono break-all mt-1">ID: {order.id}</p>
         </div>
         <StatusBadge status={order.status} />
       </div>
+      <div className="grid grid-cols-1 gap-2 text-xs">
+        <InfoLine label="Products" value={productsText(order)} />
+        <InfoLine label="Variants" value={variantsText(order)} />
+        <InfoLine label="Quantity" value={String(totalQuantity(order))} />
+      </div>
+      <OrderItemsList items={order.order_items ?? []} />
       <OrderValues order={order} />
       {order.external_email ? (
-        <p className="text-blue-300 text-xs break-all">Submitted: {order.external_email}</p>
+        <p className="text-blue-300 text-xs break-all">Cbrilliance: {order.external_email}</p>
       ) : (
         <p className="text-white/30 text-xs italic">No external email</p>
       )}
@@ -428,13 +445,45 @@ function OrderSummary({ order }: { order: AdminOrder }) {
   );
 }
 
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-white/35">{label}: </span>
+      <span className="text-white/70">{value}</span>
+    </div>
+  );
+}
+
+function OrderItemsList({ items, compact }: { items: AdminOrderItemDisplay[]; compact?: boolean }) {
+  if (!items.length) {
+    return <p className="text-white/30 text-xs italic">No item rows returned.</p>;
+  }
+
+  return (
+    <div className={`space-y-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+      {items.map((item, index) => (
+        <div key={item.order_item_id ?? item.id ?? `${itemLabel(item)}-${index}`} className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-white font-medium">{itemLabel(item)}</p>
+            <p className="text-white/70 shrink-0">x{item.quantity ?? 0}</p>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-white/45">
+            <span>Unit: {formatMoney(itemUnitPrice(item))}</span>
+            <span>Line: {formatMoney(itemLineTotal(item))}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OrderValues({ order }: { order: AdminOrder }) {
   return (
     <div className="space-y-1">
-      <p className="text-white font-bold text-base">{fmt(order.total_amount)}</p>
-      {order.deposit_amount !== undefined && <p className="text-white/50 text-xs">Deposit: {fmt(order.deposit_amount)}</p>}
-      {order.paid_amount !== undefined && <p className="text-white/50 text-xs">Paid: {fmt(order.paid_amount)}</p>}
-      {order.remaining_balance !== undefined && <p className="text-white/50 text-xs">Balance: {fmt(order.remaining_balance)}</p>}
+      <p className="text-white font-bold text-base">{formatMoney(order.total_amount)}</p>
+      {order.paid_amount !== undefined && <p className="text-white/50 text-xs">Paid: {formatMoney(order.paid_amount)}</p>}
+      {order.remaining_balance !== undefined && <p className="text-white/50 text-xs">Balance: {formatMoney(order.remaining_balance)}</p>}
+      {order.deposit_amount !== undefined && <p className="text-white/50 text-xs">Deposit: {formatMoney(order.deposit_amount)}</p>}
       <p className="text-white/40 text-xs">{order.payment_mode}</p>
     </div>
   );
@@ -483,7 +532,12 @@ function OrderActions({
 
   if (currentConfirm) {
     return (
-      <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'items-center justify-end'} gap-2`}>
+      <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-stretch min-w-[280px]'} gap-2 text-left`}>
+        <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+          <p className="text-white text-xs font-semibold">{orderSummary(order)}</p>
+          <p className="text-white/40 text-[11px] mt-1">Order ID: {shortId(order.id)}</p>
+          <OrderItemsList items={order.order_items ?? []} compact />
+        </div>
         <button
           type="button"
           onClick={() => onAction(order.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject')}
@@ -528,9 +582,9 @@ function OrderActions({
 function StatusBadge({ status }: { status?: string }) {
   const normalized = String(status ?? '').toUpperCase();
   const className =
-    normalized === 'PAID' || normalized === 'APPROVED' || normalized === 'PENDING'
+    normalized === 'PAID' || normalized === 'APPROVED' || normalized === 'SUCCESS'
       ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-      : normalized === 'REJECTED'
+      : normalized === 'REJECTED' || normalized === 'FAILED'
         ? 'border-red-500/25 bg-red-500/10 text-red-300'
         : 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300';
 

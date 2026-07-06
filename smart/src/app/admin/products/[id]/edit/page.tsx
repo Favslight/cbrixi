@@ -232,17 +232,21 @@ export default function EditProductPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
-    const availableSlots = Math.max(0, MAX_PRODUCT_IMAGES - form.existingImages.length);
-    const imageFiles = selected.filter((file) => file.type.startsWith('image/')).slice(0, availableSlots);
+    const selectedImages = selected.filter((file) => file.type.startsWith('image/'));
+    const availableSlots = Math.max(0, MAX_PRODUCT_IMAGES - form.existingImages.length - form.newImages.length);
+    const imageFiles = selectedImages.slice(0, availableSlots);
     const newImagePreviews = imageFiles.map((file) => URL.createObjectURL(file));
 
     setForm((prev) => ({
       ...prev,
-      newImages: imageFiles,
-      newImagePreviews,
-      thumbnailIndex: Math.min(prev.thumbnailIndex, Math.max(prev.existingImages.length + imageFiles.length - 1, 0)),
+      newImages: [...prev.newImages, ...imageFiles],
+      newImagePreviews: [...prev.newImagePreviews, ...newImagePreviews],
+      thumbnailIndex: prev.existingImages.length + prev.newImages.length > 0
+        ? prev.thumbnailIndex
+        : Math.min(prev.thumbnailIndex, Math.max(imageFiles.length - 1, 0)),
     }));
-    if (selected.length !== imageFiles.length) {
+    e.target.value = '';
+    if (selected.length !== imageFiles.length || selectedImages.length > imageFiles.length) {
       setError(`Only image files are accepted, and the final product image count cannot exceed ${MAX_PRODUCT_IMAGES}.`);
     } else {
       setError('');
@@ -674,7 +678,7 @@ export default function EditProductPage() {
         <div>
           <label className={labelClass}>Product Images (1 to 7)</label>
           <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" />
-          <p className="text-xs text-white/40 mt-2">Existing images are kept in this order. New uploads are appended after them.</p>
+          <p className="text-xs text-white/40 mt-2">Existing images are kept in this order. Each picker selection adds new uploads after the current selection.</p>
           {form.existingImages.length > 0 && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {form.existingImages.map((image, index) => (

@@ -141,15 +141,20 @@ export default function NewProduct() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
-    const imageFiles = selected.filter((file) => file.type.startsWith('image/')).slice(0, MAX_PRODUCT_IMAGES);
+    const selectedImages = selected.filter((file) => file.type.startsWith('image/'));
+    const availableSlots = Math.max(0, MAX_PRODUCT_IMAGES - form.images.length);
+    const imageFiles = selectedImages.slice(0, availableSlots);
     const previews = imageFiles.map((file) => URL.createObjectURL(file));
     setForm((prev) => ({
       ...prev,
-      images: imageFiles,
-      imagePreviews: previews,
-      thumbnailIndex: Math.min(prev.thumbnailIndex, Math.max(imageFiles.length - 1, 0)),
+      images: [...prev.images, ...imageFiles],
+      imagePreviews: [...prev.imagePreviews, ...previews],
+      thumbnailIndex: prev.images.length > 0
+        ? prev.thumbnailIndex
+        : Math.min(prev.thumbnailIndex, Math.max(imageFiles.length - 1, 0)),
     }));
-    if (selected.length !== imageFiles.length) {
+    e.target.value = '';
+    if (selected.length !== imageFiles.length || selectedImages.length > imageFiles.length) {
       setError(`Only image files are accepted, with a maximum of ${MAX_PRODUCT_IMAGES} images.`);
     } else {
       setError('');
@@ -531,8 +536,8 @@ export default function NewProduct() {
         {/* Image Upload */}
         <div>
           <label className={labelClass}>Product Images (up to 7) <span className="text-red-400">*</span></label>
-          <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" required />
-          <p className="text-xs text-white/40 mt-2">Images are saved in this order. Choose one image as the thumbnail.</p>
+          <input type="file" accept="image/*" multiple onChange={handleFileChange} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition-all" />
+          <p className="text-xs text-white/40 mt-2">Images are added to the current selection and saved in this order. Choose one image as the thumbnail.</p>
           {form.imagePreviews.length > 0 && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {form.imagePreviews.map((preview, index) => (

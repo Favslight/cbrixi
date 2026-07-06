@@ -1,6 +1,7 @@
 import Marketplace from '../../../components/Marketplace';
 import Link from 'next/link';
 import { products as allProducts } from '@/lib/productsStore';
+import CbrixiLogo from '../../../components/CbrixiLogo';
 
 const CATEGORY_SLUGS: Record<string, string> = {
     'Smart Watches': 'smart-watches',
@@ -25,16 +26,7 @@ function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                     {/* Brand */}
                     <div className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                                </svg>
-                            </div>
-                            <span className="text-lg font-bold tracking-widest text-[#07070a] dark:text-white transition-colors duration-300">
-                                CBRI<span className="text-blue-400">XI</span>
-                            </span>
-                        </div>
+                        <CbrixiLogo size={26} textSize="text-base" className="mb-4" />
                         <p className="text-[#07070a]/60 dark:text-white/40 text-sm leading-relaxed transition-colors duration-300">
                             Smart devices for a smarter life. Premium tech, delivered.
                         </p>

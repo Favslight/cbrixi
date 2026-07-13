@@ -58,9 +58,9 @@ export default function CheckoutPage() {
     const [pendingInstallmentOrder, setPendingInstallmentOrder] = useState<{
         id: string;
         external_email?: string;
-        total_amount?: string;
-        deposit_amount?: string;
-        remaining_balance?: string;
+        total_amount?: string | number;
+        deposit_amount?: string | number;
+        remaining_amount?: string | number;
         requires_approval?: boolean;
     } | null>(null);
 
@@ -138,21 +138,26 @@ export default function CheckoutPage() {
             });
             const data = await res.json();
             if (data.success) {
-                const order = data.order?.order;
+                const order = data.order?.order ?? data.order;
+                const summary = data.payment_summary;
+
+                // Backend clears cart after checkout — reset local state
+                setCartItems([]);
+
                 if (paymentMode === 'INSTALLMENT') {
                     setPendingInstallmentOrder({
                         id: order?.id ?? '',
                         external_email: order?.external_email ?? trimmedExternalEmail,
-                        total_amount: order?.total_amount,
-                        deposit_amount: order?.deposit_amount,
-                        remaining_balance: order?.remaining_balance,
+                        total_amount: summary?.total_amount ?? order?.total_amount,
+                        deposit_amount: summary?.deposit_amount ?? order?.deposit_amount,
+                        remaining_amount: summary?.remaining_amount ?? order?.remaining_amount ?? order?.remaining_balance,
                         requires_approval: !cbrillianceVerified && order?.status === 'AWAITING_APPROVAL',
                     });
                     setSubmitting(false);
                     return;
                 }
 
-                const paymentTotal = order?.total_amount ?? total;
+                const paymentTotal = summary?.total_amount ?? order?.total_amount ?? total;
                 router.push(`/payment?order_id=${order?.id}&total=${encodeURIComponent(String(paymentTotal))}&mode=${paymentMode}`);
             } else {
                 setError(data.message || 'Checkout failed. Please try again.');
@@ -223,7 +228,7 @@ export default function CheckoutPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
                             <SummaryPill label="Total" value={fmtMoney(pendingInstallmentOrder.total_amount ?? total)} />
                             <SummaryPill label="Required deposit" value={fmtMoney(pendingInstallmentOrder.deposit_amount ?? 0)} />
-                            <SummaryPill label="Remaining" value={fmtMoney(pendingInstallmentOrder.remaining_balance ?? 0)} />
+                            <SummaryPill label="Remaining" value={fmtMoney(pendingInstallmentOrder.remaining_amount ?? 0)} />
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3">
                             <Link href="/orders" className="inline-flex justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-3 font-bold text-white">

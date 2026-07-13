@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ThemeSwitcher from './ThemeSwitcher';
 import CbrixiLogo from './CbrixiLogo';
+import { API_URL } from '@/lib/api';
 
 const navLinks = [
   { label: 'Home', href: '/' },
@@ -25,6 +26,12 @@ const categoryMenu = [
 const CartIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
+  </svg>
+);
+
+const BellIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
   </svg>
 );
 
@@ -51,6 +58,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<{ firstname?: string; email?: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -74,6 +82,29 @@ export default function Navbar() {
 
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('userToken');
+    if (!token || isAdmin) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`${API_URL}/notifications/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setUnreadCount(data.count ?? data.unread_count ?? 0);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, [isAdmin, user]);
 
   const userInitial = user?.firstname ? user.firstname.charAt(0).toUpperCase() : null;
   const adminInitial = "A"; // Simple initial for admin
@@ -106,6 +137,16 @@ export default function Navbar() {
             {/* Right icons */}
             <div className="hidden md:flex items-center gap-3">
               <ThemeSwitcher />
+              {user && !isAdmin && (
+                <a href="/notifications" aria-label="Notifications" className="relative w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all">
+                  <BellIcon />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </a>
+              )}
               <IconButton href="/cart" label="Cart" Icon={CartIcon} />
               <IconButton 
                 href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} 
@@ -181,9 +222,12 @@ export default function Navbar() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: navLinks.length * 0.06 }}
                     onClick={() => setMobileOpen(false)}
-                    className="text-white/70 hover:text-white font-medium text-lg transition-colors"
+                    className="text-white/70 hover:text-white font-medium text-lg transition-colors flex items-center gap-2"
                   >
                     Notifications
+                    {unreadCount > 0 && (
+                      <span className="px-2 py-0.5 bg-red-500 rounded-full text-xs font-bold">{unreadCount}</span>
+                    )}
                   </motion.a>
                   <motion.a
                     href="/profile"

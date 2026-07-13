@@ -158,7 +158,13 @@ export default function CheckoutPage() {
                 }
 
                 const paymentTotal = summary?.total_amount ?? order?.total_amount ?? total;
-                router.push(`/payment?order_id=${order?.id}&total=${encodeURIComponent(String(paymentTotal))}&mode=${paymentMode}`);
+                const confirmQuery = new URLSearchParams({
+                  order_id: order?.id ?? '',
+                  total: String(paymentTotal),
+                  mode: paymentMode,
+                  action: 'order',
+                });
+                router.push(`/payment/confirm?${confirmQuery.toString()}`);
             } else {
                 setError(data.message || 'Checkout failed. Please try again.');
             }

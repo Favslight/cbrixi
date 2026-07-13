@@ -605,7 +605,7 @@ function PaymentLink({
 
   return (
     <Link
-      href={`/payment?${params.toString()}`}
+      href={`/payment/confirm?${params.toString()}`}
       className="w-fit rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-1.5 text-xs font-bold text-white"
     >
       {label}

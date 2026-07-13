@@ -193,55 +193,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  const handleBuyNow = async () => {
-    if (!product) return;
-    
-    // Add to cart first, then redirect to checkout
-    const token = localStorage.getItem('userToken');
-    if (!token) {
-      router.push('/auth/login');
-      return;
-    }
-
-    setAddingToCart(true);
-    try {
-      await fetch(`${API_URL}/cart/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(getCartPayload()),
-      });
-      router.push('/checkout');
-    } catch (error) {
-      showCartNotice({ type: 'error', message: 'Could not process purchase.' });
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
-  const handleBuyInInstallment = async () => {
-    if (!product) return;
-    
-    const token = localStorage.getItem('userToken');
-    if (!token) {
-      router.push('/auth/login');
-      return;
-    }
-
-    setAddingToCart(true);
-    try {
-      await fetch(`${API_URL}/cart/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(getCartPayload()),
-      });
-      router.push('/checkout');
-    } catch (error) {
-      showCartNotice({ type: 'error', message: 'Could not process installment purchase.' });
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
   const selectedVariant = product?.variants?.find((variant) => variant.id === selectedVariantId) ?? product?.variants?.[0];
   const displayPrice = selectedVariant?.effective_price ?? product?.effective_price ?? product?.discounted_price ?? product?.price;
   const originalPrice = selectedVariant?.price ?? product?.price;
@@ -667,11 +618,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div>
                 <button
                   onClick={handleAddToCart}
                   disabled={addingToCart}
-                  className="flex-1 px-6 py-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full px-6 py-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {addingToCart ? (
                     <>
@@ -685,24 +636,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     'Add to Cart'
                   )}
                 </button>
-                
-                <button
-                  onClick={handleBuyNow}
-                  disabled={addingToCart}
-                  className="flex-1 px-6 py-4 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  Buy Now
-                </button>
-
-                {canShowInstallment && (
-                  <button
-                    onClick={handleBuyInInstallment}
-                    disabled={addingToCart}
-                    className="flex-1 px-6 py-4 rounded-xl font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    Buy in Installments
-                  </button>
-                )}
               </div>
 
               {/* Delivery Info */}

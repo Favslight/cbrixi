@@ -1,18 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import { API_URL, getAdminToken } from "@/lib/api";
-
-interface SupportMessage {
-  id: string;
-  conversation_id: string;
-  sender_type: "USER" | "ADMIN";
-  sender_id: string;
-  message: string;
-  read_at: string | null;
-  created_at: string;
-}
+import {
+  createSupportSocket,
+  sendAdminSupportMessage,
+  type SupportMessage,
+} from "@/lib/support";
 
 interface Conversation {
   id: string;
@@ -79,11 +74,7 @@ export default function AdminSupportPage() {
     const token = getAdminToken();
     if (!token || socketRef.current?.connected) return;
 
-    const socket = io(API_URL, {
-      path: "/socket.io",
-      auth: { token, role: "admin" },
-      transports: ["websocket", "polling"],
-    });
+    const socket = createSupportSocket(token, "admin");
 
     socket.on(
       "support:conversation:updated",
@@ -156,31 +147,56 @@ export default function AdminSupportPage() {
     );
   };
 
-  const handleSend = (e: React.FormEvent) => {
+  const appendMessage = (message: SupportMessage) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === message.id)) return prev;
+      return [...prev, message];
+    });
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || !selectedId || sending) return;
 
-    const socket = socketRef.current;
-    if (!socket?.connected) {
-      setError("Socket not connected");
-      return;
-    }
+    const token = getAdminToken();
+    if (!token) return;
 
     setSending(true);
     setError("");
-    socket.emit(
-      "support:send",
-      { conversation_id: selectedId, message: text },
-      (response: { success: boolean; message?: string }) => {
-        setSending(false);
-        if (response?.success) {
-          setInput("");
-        } else {
-          setError(response?.message || "Failed to send");
+
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      socket.emit(
+        "support:send",
+        { conversation_id: selectedId, message: text },
+        async (response: { success: boolean; message?: string }) => {
+          if (response?.success) {
+            setInput("");
+            setSending(false);
+            return;
+          }
+          const fallback = await sendAdminSupportMessage(token, selectedId, text);
+          setSending(false);
+          if (fallback.success && fallback.message) {
+            setInput("");
+            appendMessage(fallback.message);
+          } else {
+            setError(response?.message || fallback.error || "Failed to send");
+          }
         }
-      }
-    );
+      );
+      return;
+    }
+
+    const result = await sendAdminSupportMessage(token, selectedId, text);
+    setSending(false);
+    if (result.success && result.message) {
+      setInput("");
+      appendMessage(result.message);
+    } else {
+      setError(result.error || "Failed to send");
+    }
   };
 
   const selected = conversations.find((c) => c.id === selectedId);

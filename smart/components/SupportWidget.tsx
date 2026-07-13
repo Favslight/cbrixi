@@ -6,6 +6,7 @@ import { Socket } from "socket.io-client";
 import { API_URL, getUserToken } from "@/lib/api";
 import {
   createSupportSocket,
+  getMessageSenderName,
   sendUserSupportMessage,
   type SupportMessage,
 } from "@/lib/support";
@@ -204,8 +205,13 @@ export default function SupportWidget() {
                 messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.sender_type === "USER" ? "justify-end" : "justify-start"}`}
+                    className={`flex flex-col ${msg.sender_type === "USER" ? "items-end" : "items-start"}`}
                   >
+                    {msg.sender_type === "ADMIN" && (
+                      <span className="text-[10px] text-white/40 mb-1 px-1">
+                        {getMessageSenderName(msg)}
+                      </span>
+                    )}
                     <div
                       className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
                         msg.sender_type === "USER"

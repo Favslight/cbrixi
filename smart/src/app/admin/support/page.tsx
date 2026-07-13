@@ -5,24 +5,19 @@ import { Socket } from "socket.io-client";
 import { API_URL, getAdminToken } from "@/lib/api";
 import {
   createSupportSocket,
+  getMessageSenderName,
+  getSupportCustomerName,
+  mergeConversationUpdate,
   sendAdminSupportMessage,
+  type ConversationUpdate,
+  type SupportConversation,
   type SupportMessage,
 } from "@/lib/support";
 
-interface Conversation {
-  id: string;
-  user_id?: string;
-  user_email?: string;
-  user_name?: string;
-  last_message?: string;
-  last_message_at?: string;
-  unread_count?: number;
-  status?: string;
-}
-
 export default function AdminSupportPage() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<SupportConversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<SupportConversation | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [input, setInput] = useState("");
   const [loadingList, setLoadingList] = useState(true);
@@ -31,6 +26,11 @@ export default function AdminSupportPage() {
   const [error, setError] = useState("");
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   const fetchConversations = useCallback(async () => {
     const token = getAdminToken();
@@ -62,6 +62,12 @@ export default function AdminSupportPage() {
       const data = await res.json();
       if (res.ok) {
         setMessages(data.messages || []);
+        if (data.conversation) {
+          setSelectedConversation(data.conversation);
+          setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, ...data.conversation } : c))
+          );
+        }
       }
     } catch (err) {
       console.error(err);
@@ -76,40 +82,29 @@ export default function AdminSupportPage() {
 
     const socket = createSupportSocket(token, "admin");
 
-    socket.on(
-      "support:conversation:updated",
-      (update: {
-        conversation_id: string;
-        last_message: string;
-        last_message_at: string;
-        unread_count: number;
-      }) => {
-        setConversations((prev) => {
-          const existing = prev.find((c) => c.id === update.conversation_id);
-          if (existing) {
-            return prev
-              .map((c) =>
-                c.id === update.conversation_id
-                  ? {
-                      ...c,
-                      last_message: update.last_message,
-                      last_message_at: update.last_message_at,
-                      unread_count: update.unread_count,
-                    }
-                  : c
-              )
-              .sort((a, b) =>
-                new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()
-              );
-          }
-          fetchConversations();
-          return prev;
-        });
+    socket.on("support:conversation:updated", (update: ConversationUpdate) => {
+      setConversations((prev) => mergeConversationUpdate(prev, update));
+
+      if (selectedIdRef.current === update.conversation_id) {
+        setSelectedConversation((prev) =>
+          prev
+            ? {
+                ...prev,
+                firstname: update.firstname ?? prev.firstname,
+                lastname: update.lastname ?? prev.lastname,
+                username: update.username ?? prev.username,
+                email: update.email ?? prev.email,
+                full_name: update.full_name ?? prev.full_name,
+                name: update.name ?? prev.name,
+                display_name: update.display_name ?? prev.display_name,
+              }
+            : prev
+        );
       }
-    );
+    });
 
     socket.on("support:message", ({ conversation_id, message }: { conversation_id: string; message: SupportMessage }) => {
-      if (conversation_id === selectedId) {
+      if (conversation_id === selectedIdRef.current) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
@@ -118,7 +113,7 @@ export default function AdminSupportPage() {
     });
 
     socketRef.current = socket;
-  }, [selectedId, fetchConversations]);
+  }, []);
 
   useEffect(() => {
     fetchConversations();
@@ -133,6 +128,9 @@ export default function AdminSupportPage() {
     if (selectedId) {
       fetchMessages(selectedId);
       socketRef.current?.emit("support:join", { conversation_id: selectedId });
+    } else {
+      setSelectedConversation(null);
+      setMessages([]);
     }
   }, [selectedId, fetchMessages]);
 
@@ -140,10 +138,11 @@ export default function AdminSupportPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSelect = (id: string) => {
-    setSelectedId(id);
+  const handleSelect = (conv: SupportConversation) => {
+    setSelectedId(conv.id ?? null);
+    setSelectedConversation(conv);
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c))
+      prev.map((c) => (c.id === conv.id ? { ...c, unread_count: 0 } : c))
     );
   };
 
@@ -199,7 +198,9 @@ export default function AdminSupportPage() {
     }
   };
 
-  const selected = conversations.find((c) => c.id === selectedId);
+  const headerConversation =
+    selectedConversation ?? conversations.find((c) => c.id === selectedId) ?? null;
+  const customerName = headerConversation ? getSupportCustomerName(headerConversation) : "Customer";
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto h-[calc(100vh-4rem)] flex flex-col">
@@ -209,7 +210,6 @@ export default function AdminSupportPage() {
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0 border border-white/10 rounded-2xl overflow-hidden bg-white/[0.02]">
-        {/* Conversation list */}
         <div className="w-full sm:w-80 border-r border-white/10 flex flex-col min-h-0">
           <div className="p-3 border-b border-white/10 text-sm font-semibold text-white/60">Conversations</div>
           <div className="flex-1 overflow-y-auto">
@@ -218,39 +218,42 @@ export default function AdminSupportPage() {
             ) : conversations.length === 0 ? (
               <div className="p-4 text-white/40 text-sm text-center">No conversations yet</div>
             ) : (
-              conversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => handleSelect(conv.id)}
-                  className={`w-full text-left p-4 border-b border-white/5 hover:bg-white/5 transition-colors ${
-                    selectedId === conv.id ? "bg-blue-500/10 border-l-2 border-l-blue-500" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm truncate">
-                      {conv.user_name || conv.user_email || `User ${conv.user_id?.slice(0, 8)}`}
-                    </span>
-                    {(conv.unread_count ?? 0) > 0 && (
-                      <span className="shrink-0 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">
-                        {conv.unread_count}
-                      </span>
+              conversations.map((conv) => {
+                const customerName = getSupportCustomerName(conv);
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => handleSelect(conv)}
+                    className={`w-full text-left p-4 border-b border-white/5 hover:bg-white/5 transition-colors ${
+                      selectedId === conv.id ? "bg-blue-500/10 border-l-2 border-l-blue-500" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="font-medium text-sm truncate">{customerName}</strong>
+                      {(conv.unread_count ?? 0) > 0 && (
+                        <span className="shrink-0 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">
+                          {conv.unread_count}
+                        </span>
+                      )}
+                    </div>
+                    {conv.email && (
+                      <small className="block text-xs text-white/40 truncate mt-0.5">{conv.email}</small>
                     )}
-                  </div>
-                  {conv.last_message && (
-                    <p className="text-xs text-white/40 truncate mt-1">{conv.last_message}</p>
-                  )}
-                  {conv.last_message_at && (
-                    <p className="text-[10px] text-white/30 mt-1">
-                      {new Date(conv.last_message_at).toLocaleString()}
-                    </p>
-                  )}
-                </button>
-              ))
+                    {conv.last_message && (
+                      <p className="text-xs text-white/40 truncate mt-1">{conv.last_message}</p>
+                    )}
+                    {conv.last_message_at && (
+                      <p className="text-[10px] text-white/30 mt-1">
+                        {new Date(conv.last_message_at).toLocaleString()}
+                      </p>
+                    )}
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* Message panel */}
         <div className="hidden sm:flex flex-1 flex-col min-h-0">
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-white/40 text-sm">
@@ -259,15 +262,13 @@ export default function AdminSupportPage() {
           ) : (
             <>
               <div className="p-4 border-b border-white/10">
-                <h2 className="font-semibold">
-                  {selected?.user_name || selected?.user_email || "Customer"}
-                </h2>
-                {selected?.user_email && selected?.user_name && (
-                  <p className="text-xs text-white/40">{selected.user_email}</p>
+                <h2 className="font-semibold">{customerName}</h2>
+                {headerConversation?.email && (
+                  <p className="text-xs text-white/40 mt-0.5">{headerConversation.email}</p>
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {loadingMessages ? (
                   <div className="text-white/40 text-sm text-center py-8">Loading messages...</div>
                 ) : messages.length === 0 ? (
@@ -276,8 +277,11 @@ export default function AdminSupportPage() {
                   messages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`flex ${msg.sender_type === "ADMIN" ? "justify-end" : "justify-start"}`}
+                      className={`flex flex-col ${msg.sender_type === "ADMIN" ? "items-end" : "items-start"}`}
                     >
+                      <span className="text-[10px] text-white/40 mb-1 px-1">
+                        {getMessageSenderName(msg)}
+                      </span>
                       <div
                         className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
                           msg.sender_type === "ADMIN"

@@ -131,28 +131,44 @@ function sortByPriority(campaigns: Campaign[]): Campaign[] {
   return [...campaigns].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
 
+function isCampaign(value: unknown): value is Campaign {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.title === 'string' &&
+    typeof obj.campaign_type === 'string' &&
+    typeof obj.placement === 'string'
+  );
+}
+
+function asCampaignList(value: unknown): Campaign[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isCampaign);
+}
+
 function extractCampaigns(data: unknown): Campaign[] {
   if (!data || typeof data !== 'object') return [];
+  if (Array.isArray(data)) return asCampaignList(data);
   const obj = data as Record<string, unknown>;
-  if (Array.isArray(obj.campaigns)) return obj.campaigns as Campaign[];
-  if (Array.isArray(obj.data)) return obj.data as Campaign[];
-  if (Array.isArray(data)) return data as Campaign[];
+  if (Array.isArray(obj.campaigns)) return asCampaignList(obj.campaigns);
+  if (Array.isArray(obj.data)) return asCampaignList(obj.data);
   return [];
 }
 
 function extractCampaign(data: unknown): Campaign | null {
   if (!data || typeof data !== 'object') return null;
   const obj = data as Record<string, unknown>;
-  if (obj.campaign && typeof obj.campaign === 'object') return obj.campaign as Campaign;
-  if (obj.id) return obj as Campaign;
+  if (isCampaign(obj.campaign)) return obj.campaign;
+  if (isCampaign(obj)) return obj;
   return null;
 }
 
 function extractStats(data: unknown): CampaignStats {
   if (!data || typeof data !== 'object') return {};
   const obj = data as Record<string, unknown>;
-  if (obj.stats && typeof obj.stats === 'object') return obj.stats as CampaignStats;
-  return obj as CampaignStats;
+  if (obj.stats && typeof obj.stats === 'object') return obj.stats as unknown as CampaignStats;
+  return obj as unknown as CampaignStats;
 }
 
 async function publicFetch<T = unknown>(path: string, options: RequestInit = {}): Promise<{ ok: boolean; data: T }> {

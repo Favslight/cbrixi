@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CbrixiLogo from '@/components/CbrixiLogo';
-import { Product, products as localProducts } from '@/lib/productsStore';
+import MobileNavMenu from '@/components/MobileNavMenu';
+import { Product } from '@/lib/productsStore';
 import { formatMoney, getSellingPrice, hasActiveDiscount, toNumber } from '@/lib/pricing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -55,13 +56,15 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartNotice, setCartNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userInitial, setUserInitial] = useState<string | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   const fetchProduct = async (productId: string) => {
-    if (typeof window === 'undefined') return;
-    
+    if (typeof window === 'undefined') return null;
+
     const token = localStorage.getItem('userToken');
-    const headers: any = {};
+    const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
@@ -75,21 +78,14 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     } catch (error) {
       console.error('Error fetching product:', error);
     }
-    
-    // Fallback to local products - try to find by ID, or use first product as fallback
-    const localProduct = localProducts.find(p => p.id === productId);
-    if (localProduct) {
-      setProduct(localProduct);
-      return localProduct;
-    }
-    
-    // If API failed and no local ID match, try to fetch all products first and find the product
+
+    // Fallback: resolve from full catalog if detail endpoint fails
     try {
       const res = await fetch(`${API_URL}/products`, { headers });
       if (res.ok) {
         const data = await res.json();
         const allMapped = mapProducts(data.products || []);
-        const foundProduct = allMapped.find(p => p.id === productId);
+        const foundProduct = allMapped.find((p) => p.id === productId);
         if (foundProduct) {
           setProduct(foundProduct);
           return foundProduct;
@@ -98,31 +94,29 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     } catch (error) {
       console.error('Error fetching all products:', error);
     }
-    
-    // If still no match, use the first local product as fallback
-    if (localProducts.length > 0) {
-      setProduct(localProducts[0]);
-      return localProducts[0];
-    }
-    
+
+    setProduct(null);
     return null;
   };
 
   const fetchAllProducts = async () => {
     if (typeof window === 'undefined') return;
-    
+
     const token = localStorage.getItem('userToken');
-    const headers: any = {};
+    const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
       const res = await fetch(`${API_URL}/products`, { headers });
+      if (!res.ok) {
+        setAllProducts([]);
+        return;
+      }
       const data = await res.json();
-      const mapped = mapProducts(data.products || []);
-      setAllProducts(mapped.length ? mapped : (localProducts as Product[]));
+      setAllProducts(mapProducts(data.products || []));
     } catch (error) {
       console.error('Error fetching products:', error);
-      setAllProducts(localProducts as Product[]);
+      setAllProducts([]);
     }
   };
 
@@ -130,7 +124,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     if (typeof window === 'undefined') return;
     
     setUserLoggedIn(!!localStorage.getItem('userToken'));
-    
+    setIsAdmin(!!localStorage.getItem('adminToken'));
+
+    const userData = localStorage.getItem('userData');
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        const user = parsed.user ?? parsed;
+        setUserInitial(user?.firstname ? user.firstname.charAt(0).toUpperCase() : null);
+      } catch {
+        setUserInitial(null);
+      }
+    }
+
     const loadProduct = async () => {
       setLoading(true);
       const fetchedProduct = await fetchProduct(id);
@@ -200,7 +206,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const isDiscounted = selectedVariant ? hasActiveDiscount(selectedVariant) : (product ? hasActiveDiscount(product) : false);
 
   const similarProducts = allProducts.filter(p => p.category === product?.category && p.id !== product?.id).slice(0, 5);
-  const otherProducts = allProducts.filter(p => p.id !== product?.id).sort(() => Math.random() - 0.5).slice(0, 5);
+  const otherProducts = allProducts.filter(p => p.id !== product?.id).slice(0, 5);
 
   const depositPercent = product ? toNumber(product.minimum_deposit_percentage) : 0;
   const installmentMonths = product ? toNumber(product.installment_duration_months) : 0;
@@ -317,12 +323,26 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </button>
           )}
 
-          {/* Profile Icon - Always visible on mobile when logged in */}
-          {userLoggedIn && (
-            <button onClick={() => router.push('/profile')} className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
+          {/* Profile Icon - Always visible in top bar when logged in (or admin) */}
+          {(userLoggedIn || isAdmin) && (
+            <button
+              onClick={() => router.push(isAdmin ? '/admin' : '/profile')}
+              className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2"
+              aria-label="Account"
+            >
+              {isAdmin ? (
+                <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-purple-500/20 text-purple-400 rounded-full">
+                  A
+                </div>
+              ) : userInitial ? (
+                <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-blue-500/20 text-blue-400 rounded-full">
+                  {userInitial}
+                </div>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              )}
             </button>
           )}
 
@@ -380,99 +400,14 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         )}
       </AnimatePresence>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu — same items as Homepage Navbar */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-950/95 dark:backdrop-blur-xl border-b dark:border-white/10 px-4 py-4 shadow-lg">
-          <div className="flex flex-col gap-3">
-            {!userLoggedIn && (
-              <button 
-                onClick={() => {
-                  router.push('/auth/login');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/50 transition-shadow duration-300"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span>Sign In</span>
-              </button>
-            )}
-            <button 
-              onClick={() => {
-                router.push('/marketplace');
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span>Marketplace</span>
-            </button>
-            <button 
-              onClick={() => {
-                router.push('/');
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span>Home</span>
-            </button>
-            <button 
-              onClick={() => {
-                router.push('/#categories');
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-              <span>Categories</span>
-            </button>
-            <button 
-              onClick={() => {
-                router.push('/#contact');
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <span>Contact</span>
-            </button>
-            {userLoggedIn && (
-              <button 
-                onClick={() => {
-                  router.push('/profile');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span>Profile</span>
-              </button>
-            )}
-            <button 
-              onClick={() => {
-                router.push('/cart');
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 6H3m4 7a2 2 0 100 4 2 2 0 000-4zm10 0a2 2 0 100 4 2 2 0 000-4z" />
-              </svg>
-              <span>Cart</span>
-            </button>
-          </div>
+          <MobileNavMenu
+            userLoggedIn={userLoggedIn}
+            isAdmin={isAdmin}
+            onLinkClick={() => setMobileMenuOpen(false)}
+          />
         </div>
       )}
 

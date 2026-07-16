@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Product, products as localProducts } from '@/lib/productsStore';
+import { Product } from '@/lib/productsStore';
 import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 import { useRouter } from 'next/navigation';
 import CbrixiLogo from './CbrixiLogo';
+import MobileNavMenu from './MobileNavMenu';
+
 
 function ProductPrice({ product, variant = 'card' }: { product: Product; variant?: 'card' | 'modal' }) {
   const discounted = hasActiveDiscount(product);
@@ -44,11 +46,14 @@ export default function Marketplace() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [userLoggedIn, setUserLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userInitial, setUserInitial] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
   const [cartNotice, setCartNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const router = useRouter();
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -74,75 +79,115 @@ export default function Marketplace() {
 
   const fetchAllProducts = async () => {
     if (typeof window === 'undefined') return;
-    
+
     const token = localStorage.getItem('userToken');
-    const headers: any = {};
+    const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
       const res = await fetch(`${API_URL}/products`, { headers });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProducts([]);
+        setFetchError(data.message || 'Could not load products.');
+        return;
+      }
       const mapped = mapProducts(data.products || []);
       setAllCategories(Array.from(new Set(mapped.map((p) => p.category).filter(Boolean))));
-      setProducts(mapped.length ? mapped : (localProducts as Product[]));
+      setProducts(mapped);
+      setFetchError(null);
     } catch (error) {
       console.error('Error fetching products:', error);
-      setProducts(localProducts as Product[]);
+      setProducts([]);
+      setFetchError('Could not load products. Please try again.');
+    }
+  };
+
+  const fetchCategoriesOnly = async () => {
+    if (typeof window === 'undefined') return;
+
+    const token = localStorage.getItem('userToken');
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`${API_URL}/products`, { headers });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      const mapped = mapProducts(data.products || []);
+      setAllCategories(Array.from(new Set(mapped.map((p) => p.category).filter(Boolean))));
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
   const fetchByCategory = async (category: string) => {
     if (typeof window === 'undefined') return;
-    
+
     const token = localStorage.getItem('userToken');
-    const headers: any = {};
+    const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
       const res = await fetch(`${API_URL}/products/category/${encodeURIComponent(category)}`, { headers });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setProducts([]);
+        setFetchError(data.message || 'Could not load products for this category.');
         return;
       }
       setProducts(mapProducts(data.products || []));
+      setFetchError(null);
     } catch (error) {
       console.error('Error fetching category products:', error);
       setProducts([]);
+      setFetchError('Could not load products. Please try again.');
     }
   };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
-    setUserLoggedIn(!!localStorage.getItem('userToken'));
 
-    // Check if category is provided in URL
+    setUserLoggedIn(!!localStorage.getItem('userToken'));
+    setIsAdmin(!!localStorage.getItem('adminToken'));
+
+    const userData = localStorage.getItem('userData');
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        const user = parsed.user ?? parsed;
+        setUserInitial(user?.firstname ? user.firstname.charAt(0).toUpperCase() : null);
+      } catch {
+        setUserInitial(null);
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     const cat = params.get('category');
     if (cat) {
       setActiveCategory(cat);
     }
 
-    setLoading(true);
-    fetchAllProducts()
-      .catch(() => setProducts(localProducts as Product[]))
-      .finally(() => setLoading(false));
+    fetchCategoriesOnly();
   }, []);
 
   useEffect(() => {
-    if (activeCategory === 'All') {
-      setLoading(true);
-      fetchAllProducts()
-        .catch(() => setProducts(localProducts as Product[]))
-        .finally(() => setLoading(false));
-      return;
-    }
+    let cancelled = false;
 
-    setLoading(true);
-    fetchByCategory(activeCategory)
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
+    const load = async () => {
+      setLoading(true);
+      if (activeCategory === 'All') {
+        await fetchAllProducts();
+      } else {
+        await fetchByCategory(activeCategory);
+      }
+      if (!cancelled) setLoading(false);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [activeCategory]);
 
   useEffect(() => {
@@ -181,12 +226,7 @@ export default function Marketplace() {
     setTouchStartX(null);
   };
 
-  const categories = useMemo(() => {
-    // Ensure the requested categories are always available at the top
-    const baseCategories = ['All', 'Smart Phones', 'Laptops', 'Smart Watches', 'Smart Home', 'Accessories', 'Vehicles', 'Audio Devices'];
-    const dynamicCats = allCategories.filter(c => !baseCategories.includes(c));
-    return [...baseCategories, ...dynamicCats];
-  }, [allCategories]);
+  const categories = useMemo(() => ['All', ...allCategories], [allCategories]);
 
   const filteredProducts = useMemo(() => {
     if (!search.trim()) return products;
@@ -307,12 +347,26 @@ export default function Marketplace() {
               </button>
             )}
 
-            {/* Profile Icon - Always visible on mobile when logged in */}
-            {userLoggedIn && (
-              <button onClick={() => router.push('/profile')} className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+            {/* Profile Icon - Always visible in top bar when logged in (or admin) */}
+            {(userLoggedIn || isAdmin) && (
+              <button
+                onClick={() => router.push(isAdmin ? '/admin' : '/profile')}
+                className="text-gray-700 dark:text-white/80 hover:text-black dark:hover:text-white p-2"
+                aria-label="Account"
+              >
+                {isAdmin ? (
+                  <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-purple-500/20 text-purple-400 rounded-full">
+                    A
+                  </div>
+                ) : userInitial ? (
+                  <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-blue-500/20 text-blue-400 rounded-full">
+                    {userInitial}
+                  </div>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                )}
               </button>
             )}
 
@@ -370,73 +424,14 @@ export default function Marketplace() {
           )}
         </AnimatePresence>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu — same items as Homepage Navbar */}
         {mobileMenuOpen && (
           <div className="md:hidden bg-white dark:bg-gray-950/95 dark:backdrop-blur-xl border-b dark:border-white/10 px-4 py-4 shadow-lg">
-            <div className="flex flex-col gap-3">
-              {!userLoggedIn && (
-                <button 
-                  onClick={() => {
-                    router.push('/auth/login');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/50 transition-shadow duration-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <span>Sign In</span>
-                </button>
-              )}
-              <button 
-                onClick={() => {
-                  router.push('/marketplace');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                <span>Marketplace</span>
-              </button>
-              <button 
-                onClick={() => {
-                  router.push('/');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                <span>Home</span>
-              </button>
-              <button 
-                onClick={() => {
-                  router.push('/#categories');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                </svg>
-                <span>Categories</span>
-              </button>
-              <button 
-                onClick={() => {
-                  router.push('/#contact');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-700 dark:text-white/80 hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span>Contact</span>
-              </button>
-            </div>
+            <MobileNavMenu
+              userLoggedIn={userLoggedIn}
+              isAdmin={isAdmin}
+              onLinkClick={() => setMobileMenuOpen(false)}
+            />
           </div>
         )}
 
@@ -464,6 +459,33 @@ export default function Marketplace() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
+          </div>
+        ) : fetchError ? (
+          <div className="mx-auto max-w-lg px-4 py-20 text-center">
+            <p className="text-lg font-semibold text-gray-800 dark:text-white">{fetchError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                (activeCategory === 'All' ? fetchAllProducts() : fetchByCategory(activeCategory)).finally(() => setLoading(false));
+              }}
+              className="mt-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-2.5 text-sm font-bold text-white"
+            >
+              Try again
+            </button>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="mx-auto max-w-lg px-4 py-20 text-center">
+            <p className="text-lg font-semibold text-gray-800 dark:text-white">
+              {search.trim() ? 'No products match your search.' : 'No products available yet.'}
+            </p>
+            <p className="mt-2 text-sm text-gray-500 dark:text-white/50">
+              {search.trim()
+                ? 'Try a different search term or clear the filter.'
+                : activeCategory === 'All'
+                  ? 'Check back soon for new listings.'
+                  : `Nothing in “${activeCategory}” right now.`}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3 sm:gap-3.5 lg:grid-cols-4 lg:gap-5 xl:grid-cols-5 2xl:grid-cols-6 max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-8">

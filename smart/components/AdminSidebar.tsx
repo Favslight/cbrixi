@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import CbrixiLogo from './CbrixiLogo';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: GridIcon },
@@ -25,6 +28,30 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`${API_URL}/admin/notifications/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setUnreadCount(data.count ?? data.unread_count ?? 0);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, [pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
@@ -62,6 +89,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
       <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-6 space-y-1" aria-label="Admin">
         {navItems.map(({ label, href, icon: Icon }) => {
           const active = pathname === href || (href !== '/admin' && pathname.startsWith(href));
+          const showBadge = href === '/admin/notifications' && unreadCount > 0;
           return (
             <Link key={href} href={href} onClick={() => onClose?.()} scroll>
               <motion.div
@@ -73,7 +101,12 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-blue-400' : ''}`} />
                 {label}
-                {active && (
+                {showBadge && (
+                  <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {active && !showBadge && (
                   <motion.div layoutId="activeIndicator" className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400" />
                 )}
               </motion.div>

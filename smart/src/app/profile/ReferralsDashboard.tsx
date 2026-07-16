@@ -77,6 +77,7 @@ export default function ReferralsDashboard() {
   const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
   const [pagination, setPagination] = useState<ReferralPagination | null>(null);
   const [copyMsg, setCopyMsg] = useState("");
+  const [shareMsg, setShareMsg] = useState("");
 
   const fetchReferrals = useCallback(async (offset = 0, append = false) => {
     if (offset === 0) setLoading(true);
@@ -135,7 +136,8 @@ export default function ReferralsDashboard() {
       });
       const result = await res.json();
       if (res.ok && result.success) {
-        setPayoutMsg("Payout request submitted successfully!");
+        const amount = result.payout?.amount ?? data.stats.available_balance;
+        setPayoutMsg(`Payout request pending — ₦${Number(amount).toLocaleString()} submitted.`);
         setPayoutForm({ account_name: "", account_number: "", bank_name: "" });
         fetchReferrals(0, false);
       } else {
@@ -158,12 +160,33 @@ export default function ReferralsDashboard() {
     }
   };
 
+  const shareLink = async (link: string, code: string) => {
+    const shareData = {
+      title: "Join CBRIXI",
+      text: `Sign up on CBRIXI with my referral code ${code}`,
+      url: link,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setShareMsg("Shared!");
+      } else {
+        await navigator.clipboard.writeText(link);
+        setShareMsg("Link copied");
+      }
+      setTimeout(() => setShareMsg(""), 2000);
+    } catch {
+      // user cancelled share — ignore
+    }
+  };
+
   if (loading) return <div className="text-center text-white/50 py-8">Loading referrals...</div>;
   if (error) return <div className="text-red-400 text-center py-8">{error}</div>;
   if (!data) return null;
 
-  const refLink = data.referral_link || `${window.location.origin}/auth/signup?ref=${data.referral_code}`;
+  const refLink = data.referral_link || `${window.location.origin}/signup?ref=${data.referral_code}`;
   const totalInvited = data.referral_count ?? data.stats.total_referred;
+  const available = Number(data.stats.available_balance ?? 0);
 
   return (
     <div className="mt-12 space-y-8">
@@ -172,26 +195,41 @@ export default function ReferralsDashboard() {
           <h2 className="text-2xl font-bold mb-2">Refer & Earn</h2>
           <p className="text-white/60 text-sm">
             Invite friends to CBRIXI and earn {data.settings.bonus_percentage}% rewards on their purchases.
+            {!data.settings.is_enabled && (
+              <span className="block text-yellow-400/80 mt-1">Referral rewards are currently paused.</span>
+            )}
           </p>
         </div>
-        <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+        <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex flex-col gap-3 w-full md:w-auto min-w-[260px]">
           <div>
             <div className="text-xs text-white/50 mb-1 uppercase tracking-wider font-semibold">Your Code</div>
             <div className="font-mono text-lg font-bold text-blue-400">{data.referral_code}</div>
+            <div className="text-xs text-white/40 mt-1 break-all">{refLink}</div>
           </div>
-          <button
-            onClick={() => copyToClipboard(refLink)}
-            className="sm:ml-auto px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-colors text-sm font-medium"
-          >
-            {copyMsg || "Copy Link"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => copyToClipboard(refLink)}
+              className="flex-1 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-colors text-sm font-medium"
+            >
+              {copyMsg || "Copy Link"}
+            </button>
+            <button
+              type="button"
+              onClick={() => shareLink(refLink, data.referral_code)}
+              className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 text-white/80 rounded-lg transition-colors text-sm font-medium border border-white/10"
+            >
+              {shareMsg || "Share"}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard title="Available" value={`₦${data.stats.available_balance.toLocaleString()}`} color="text-green-400" />
-        <StatCard title="Total Earned" value={`₦${data.stats.total_earned.toLocaleString()}`} />
-        <StatCard title="Pending" value={`₦${data.stats.pending_payout_balance.toLocaleString()}`} color="text-yellow-400" />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <StatCard title="Available" value={`₦${available.toLocaleString()}`} color="text-green-400" />
+        <StatCard title="Total Earned" value={`₦${Number(data.stats.total_earned).toLocaleString()}`} />
+        <StatCard title="Pending Payout" value={`₦${Number(data.stats.pending_payout_balance).toLocaleString()}`} color="text-yellow-400" />
+        <StatCard title="Paid Out" value={`₦${Number(data.stats.paid_out_balance ?? 0).toLocaleString()}`} color="text-blue-300" />
         <StatCard title="Friends Invited" value={totalInvited.toString()} />
       </div>
 
@@ -319,12 +357,15 @@ export default function ReferralsDashboard() {
               />
             </div>
             {payoutMsg && <div className="text-sm text-center text-blue-300">{payoutMsg}</div>}
+            {available <= 0 && (
+              <p className="text-xs text-white/40 text-center">You need an available balance to request a payout.</p>
+            )}
             <button
               type="submit"
-              disabled={payoutLoading || data.stats.available_balance <= 0}
+              disabled={payoutLoading || available <= 0}
               className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl font-bold disabled:opacity-50"
             >
-              {payoutLoading ? "Submitting..." : `Withdraw ₦${data.stats.available_balance.toLocaleString()}`}
+              {payoutLoading ? "Submitting..." : `Withdraw ₦${available.toLocaleString()}`}
             </button>
           </form>
         </div>

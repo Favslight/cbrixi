@@ -5,23 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ThemeSwitcher from './ThemeSwitcher';
 import CbrixiLogo from './CbrixiLogo';
 import { API_URL } from '@/lib/api';
-
-const navLinks = [
-  { label: 'Home', href: '/' },
-  { label: 'MarketPlace', href: '/marketplace' },
-  { label: 'Orders', href: '/orders' },
-  { label: 'Categories', href: '/#categories' },
-  { label: 'Contact', href: '/#contact' },
-];
-
-const categoryMenu = [
-  { label: 'Smart Watches', href: '/marketplace?category=Smart+Watches' },
-  { label: 'Smart Home', href: '/marketplace?category=Smart+Home' },
-  { label: 'Audio Devices', href: '/marketplace?category=Audio+Devices' },
-  { label: 'Accessories', href: '/marketplace?category=Accessories' },
-  { label: 'Smart Phones', href: '/marketplace?category=Smart+Phones' },
-  { label: 'Vehicles', href: '/marketplace?category=Vehicles' },
-];
+import { navLinks, categoryMenu, getLoggedInNavExtras } from '@/lib/navLinks';
 
 const CartIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -68,7 +52,8 @@ export default function Navbar() {
     const userData = localStorage.getItem("userData");
     if (userData) {
         try {
-            setUser(JSON.parse(userData));
+            const parsed = JSON.parse(userData);
+            setUser(parsed.user ?? parsed);
         } catch (e) {
             console.error("Error parsing user data", e);
         }
@@ -108,6 +93,26 @@ export default function Navbar() {
 
   const userInitial = user?.firstname ? user.firstname.charAt(0).toUpperCase() : null;
   const adminInitial = "A"; // Simple initial for admin
+  const accountHref = isAdmin ? "/admin" : user ? "/profile" : "/auth/login";
+
+  const AccountAvatar = ({ size = "sm" }: { size?: "sm" | "md" }) => {
+    const box = size === "md" ? "w-6 h-6 text-xs" : "w-5 h-5 text-sm";
+    if (isAdmin) {
+      return (
+        <div className={`${box} flex items-center justify-center font-bold bg-purple-500/20 text-purple-400 rounded-full`}>
+          {adminInitial}
+        </div>
+      );
+    }
+    if (userInitial) {
+      return (
+        <div className={`${box} flex items-center justify-center font-bold bg-blue-500/20 text-blue-400 rounded-full`}>
+          {userInitial}
+        </div>
+      );
+    }
+    return <UserIcon />;
+  };
 
   return (
     <>
@@ -148,18 +153,10 @@ export default function Navbar() {
                 </a>
               )}
               <IconButton href="/cart" label="Cart" Icon={CartIcon} />
-              <IconButton 
-                href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} 
-                label="Account" 
-                Icon={isAdmin ? () => (
-                    <div className="w-5 h-5 flex items-center justify-center text-sm font-bold bg-purple-500/20 text-purple-400 rounded-full">
-                        {adminInitial}
-                    </div>
-                ) : userInitial ? () => (
-                    <div className="w-5 h-5 flex items-center justify-center text-sm font-bold bg-blue-500/20 text-blue-400 rounded-full">
-                        {userInitial}
-                    </div>
-                ) : UserIcon} 
+              <IconButton
+                href={accountHref}
+                label="Account"
+                Icon={() => <AccountAvatar />}
               />
               
                 <motion.a
@@ -172,18 +169,50 @@ export default function Navbar() {
                 </motion.a>
             </div>
 
-            {/* Hamburger menu (Active on all screens) */}
-            <div className="flex items-center gap-4 ml-2">
-              <a href="/cart" className="md:hidden text-white/80 hover:text-white transition-colors" aria-label="Cart">
+            {/* Mobile top-bar actions — profile stays visible with hamburger closed */}
+            <div className="flex md:hidden items-center gap-2 ml-2">
+              {user && !isAdmin && (
+                <a
+                  href="/notifications"
+                  aria-label="Notifications"
+                  className="relative w-9 h-9 flex items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <BellIcon />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </a>
+              )}
+              <a href="/cart" className="w-9 h-9 flex items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all" aria-label="Cart">
                 <CartIcon />
               </a>
-            <button
-              onClick={() => setMobileOpen((v) => !v)}
-              className="text-white/80 hover:text-white transition-colors p-1"
-              aria-label="Toggle menu"
-            >
-              {mobileOpen ? <CloseIcon /> : <MenuIcon />}
-            </button>
+              <a
+                href={accountHref}
+                aria-label="Account"
+                className="w-9 h-9 flex items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <AccountAvatar />
+              </a>
+              <button
+                onClick={() => setMobileOpen((v) => !v)}
+                className="text-white/80 hover:text-white transition-colors p-1"
+                aria-label="Toggle menu"
+              >
+                {mobileOpen ? <CloseIcon /> : <MenuIcon />}
+              </button>
+            </div>
+
+            {/* Desktop hamburger (drawer still available on larger screens) */}
+            <div className="hidden md:flex items-center ml-2">
+              <button
+                onClick={() => setMobileOpen((v) => !v)}
+                className="text-white/80 hover:text-white transition-colors p-1"
+                aria-label="Toggle menu"
+              >
+                {mobileOpen ? <CloseIcon /> : <MenuIcon />}
+              </button>
             </div>
           </div>
         </div>
@@ -201,7 +230,10 @@ export default function Navbar() {
             className="fixed top-16 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-xl border-b border-white/8 px-6 py-6"
           >
             <div className="flex flex-col gap-4">
-              {navLinks.map((link, i) => (
+              {[
+                ...navLinks,
+                ...(user && !isAdmin ? getLoggedInNavExtras() : []),
+              ].map((link, i) => (
                 <motion.a
                   key={link.label}
                   href={link.href}
@@ -209,49 +241,17 @@ export default function Navbar() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.06 }}
                   onClick={() => setMobileOpen(false)}
-                  className="text-white/70 hover:text-white font-medium text-lg transition-colors"
+                  className="text-white/70 hover:text-white font-medium text-lg transition-colors flex items-center gap-2"
                 >
                   {link.label}
+                  {link.label === 'Notifications' && unreadCount > 0 && (
+                    <span className="px-2 py-0.5 bg-red-500 rounded-full text-xs font-bold">{unreadCount}</span>
+                  )}
                 </motion.a>
               ))}
-              {user && !isAdmin && (
-                <>
-                  <motion.a
-                    href="/notifications"
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: navLinks.length * 0.06 }}
-                    onClick={() => setMobileOpen(false)}
-                    className="text-white/70 hover:text-white font-medium text-lg transition-colors flex items-center gap-2"
-                  >
-                    Notifications
-                    {unreadCount > 0 && (
-                      <span className="px-2 py-0.5 bg-red-500 rounded-full text-xs font-bold">{unreadCount}</span>
-                    )}
-                  </motion.a>
-                  <motion.a
-                    href="/profile"
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (navLinks.length + 1) * 0.06 }}
-                    onClick={() => setMobileOpen(false)}
-                    className="text-white/70 hover:text-white font-medium text-lg transition-colors"
-                  >
-                    Profile & Referrals
-                  </motion.a>
-                </>
-              )}
               <div className="flex gap-3 pt-2 border-t border-white/10 mt-2">
-                <a href={isAdmin ? "/admin" : user ? "/profile" : "/auth/login"} className="text-white/60 hover:text-white transition-colors">
-                    {isAdmin ? (
-                        <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-purple-500/20 text-purple-400 rounded-full">
-                            {adminInitial}
-                        </div>
-                    ) : userInitial ? (
-                        <div className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-blue-500/20 text-blue-400 rounded-full">
-                            {userInitial}
-                        </div>
-                    ) : <UserIcon />}
+                <a href={accountHref} className="text-white/60 hover:text-white transition-colors" aria-label="Account">
+                  <AccountAvatar size="md" />
                 </a>
               </div>
             </div>

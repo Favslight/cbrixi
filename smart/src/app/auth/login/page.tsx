@@ -45,7 +45,8 @@ export default function Login() {
             });
             if (profileRes.ok) {
                 const profile = await profileRes.json();
-                localStorage.setItem("userData", JSON.stringify(profile));
+                const user = profile.user ?? profile;
+                localStorage.setItem("userData", JSON.stringify(user));
             }
         } catch (err) {
             console.error("Failed to fetch profile", err);

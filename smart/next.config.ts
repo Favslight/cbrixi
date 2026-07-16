@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
       tailwindcss: path.resolve(__dirname, "node_modules/tailwindcss"),
     },
   },
+  // Referral links use /signup?ref=CODE — route to the real signup page.
+  async redirects() {
+    return [
+      {
+        source: "/signup",
+        destination: "/auth/signup",
+        permanent: false,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

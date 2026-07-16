@@ -4,15 +4,29 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import Navbar from '../../../../components/Navbar';
+import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 
-/* ─── Per-category data ─────────────────────────────────── */
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
+
+const SLUG_TO_CATEGORY: Record<string, string> = {
+  'smart-watches': 'Smart Watches',
+  'smart-home': 'Smart Home',
+  'audio-devices': 'Audio Devices',
+  accessories: 'Accessories',
+  'smart-phones': 'Smart Phones',
+  laptops: 'Laptops',
+  vehicles: 'Vehicles',
+};
+
+/* ─── Per-category marketing copy (no product/price data) ─ */
 const CATEGORIES: Record<string, {
   title: string;
   tagline: string;
   image: string;
-  accent: string;          // tailwind colour token (blue/purple/cyan/emerald)
-  accentHex: string;       // raw hex for glow/border
-  gradient: string;        // card gradient classes
+  accent: string;
+  accentHex: string;
+  gradient: string;
   icon: string;
   intro: string;
   sections: { heading: string; body: string }[];
@@ -120,7 +134,7 @@ const CATEGORIES: Record<string, {
     ],
   },
 
-  'accessories': {
+  accessories: {
     title: 'Accessories',
     tagline: 'Complete your setup.',
     image: '/images/laptop.png',
@@ -155,22 +169,35 @@ const CATEGORIES: Record<string, {
   },
 };
 
-/* ─── Accent helpers ────────────────────────────────────── */
 const accentClasses: Record<string, { text: string; border: string; bg: string; badge: string }> = {
-  blue:    { text: 'text-blue-400',    border: 'border-blue-500/40',   bg: 'bg-blue-500/10',    badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-  purple:  { text: 'text-purple-400',  border: 'border-purple-500/40', bg: 'bg-purple-500/10',  badge: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-  cyan:    { text: 'text-cyan-400',    border: 'border-cyan-500/40',   bg: 'bg-cyan-500/10',    badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-  emerald: { text: 'text-emerald-400', border: 'border-emerald-500/40',bg: 'bg-emerald-500/10', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  blue: { text: 'text-blue-400', border: 'border-blue-500/40', bg: 'bg-blue-500/10', badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+  purple: { text: 'text-purple-400', border: 'border-purple-500/40', bg: 'bg-purple-500/10', badge: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+  cyan: { text: 'text-cyan-400', border: 'border-cyan-500/40', bg: 'bg-cyan-500/10', badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+  emerald: { text: 'text-emerald-400', border: 'border-emerald-500/40', bg: 'bg-emerald-500/10', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
 };
 
-/* ─── Page ──────────────────────────────────────────────── */
+type CategoryProduct = {
+  id: string;
+  name: string;
+  image: string;
+  price: string | number;
+  discounted_price?: string | number;
+  effective_price?: string | number;
+  discount_enabled?: boolean;
+  discount_percentage?: string | number;
+};
+
 export default function CategoryPage() {
   const params = useParams();
   const slug = typeof params?.category === 'string' ? params.category : '';
   const data = CATEGORIES[slug];
   const ac = data ? accentClasses[data.accent] : null;
+  const categoryName = SLUG_TO_CATEGORY[slug] || data?.title || '';
 
-  // Typewriter for the page tagline that loops: typing -> pause -> erasing -> repeat
+  const [products, setProducts] = useState<CategoryProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState(false);
+
   function useTypewriterSingle(text: string, typingMs = 40, pauseMs = 900, eraseMs = 30) {
     const [display, setDisplay] = useState('');
     const [phase, setPhase] = useState<'typing' | 'pause' | 'erasing'>('typing');
@@ -206,22 +233,65 @@ export default function CategoryPage() {
           setPhase('typing');
         }
       }
-      return () => { if (timer) clearTimeout(timer); };
+      return () => {
+        if (timer) clearTimeout(timer);
+      };
     }, [text, typingMs, pauseMs, eraseMs, phase, charIdx]);
 
     return { display, phase };
   }
 
-  /* Scroll to top on mount */
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [slug]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [slug]);
 
-  // Inline component for rendering the typewriter tagline so hooks stay top-level
+  useEffect(() => {
+    if (!categoryName) {
+      setProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setProductsLoading(true);
+      setProductsError(false);
+      try {
+        const res = await fetch(`${API_URL}/products/category/${encodeURIComponent(categoryName)}`);
+        if (!res.ok) throw new Error('Failed');
+        const json = await res.json();
+        const mapped = (json.products || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          image: p.image_url || p.image || '/images/smartwatch.png',
+          price: p.price ?? 0,
+          discounted_price: p.discounted_price,
+          effective_price: p.effective_price,
+          discount_enabled: p.discount_enabled,
+          discount_percentage: p.discount_percentage,
+        }));
+        if (!cancelled) setProducts(mapped);
+      } catch {
+        if (!cancelled) {
+          setProducts([]);
+          setProductsError(true);
+        }
+      } finally {
+        if (!cancelled) setProductsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryName]);
+
   function HeroTagline({ text }: { text: string }) {
     const { display, phase } = useTypewriterSingle(text);
-
-    // Split display and wrap the last token in gradient-text (works while typing)
     const parts = display ? display.split(' ') : [''];
-    const last = parts.length > 0 ? parts.pop() as string : '';
+    const last = parts.length > 0 ? (parts.pop() as string) : '';
     const prefix = parts.length ? parts.join(' ') + ' ' : '';
 
     return (
@@ -242,10 +312,10 @@ export default function CategoryPage() {
     );
   }
 
-  /* ── 404 state ── */
   if (!data || !ac) {
     return (
       <main className="min-h-screen bg-[#07070a] flex flex-col items-center justify-center gap-6 p-8">
+        <Navbar />
         <p className="text-6xl">🔍</p>
         <h1 className="text-3xl font-bold text-white">Category not found</h1>
         <p className="text-white/50">The category &ldquo;{slug}&rdquo; doesn&apos;t exist yet.</p>
@@ -256,13 +326,13 @@ export default function CategoryPage() {
     );
   }
 
+  const marketplaceHref = `/marketplace?category=${encodeURIComponent(data.title)}`;
+
   return (
     <main className="min-h-screen bg-[#07070a] text-white overflow-x-hidden">
+      <Navbar />
 
-      {/* ── Hero ── */}
       <section className="relative min-h-[92vh] flex items-center overflow-hidden">
-
-        {/* Layered background glow */}
         <div className="absolute inset-0 pointer-events-none">
           <div
             className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full blur-[160px] opacity-20"
@@ -272,19 +342,9 @@ export default function CategoryPage() {
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center py-24">
-
-          {/* Left: Text */}
           <div>
-            {/* Back link */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <Link
-                href="/#categories"
-                className={`inline-flex items-center gap-2 text-sm font-medium ${ac.text} mb-8 group`}
-              >
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
+              <Link href="/#categories" className={`inline-flex items-center gap-2 text-sm font-medium ${ac.text} mb-8 group`}>
                 <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -292,7 +352,6 @@ export default function CategoryPage() {
               </Link>
             </motion.div>
 
-            {/* Tag */}
             <motion.span
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -303,7 +362,6 @@ export default function CategoryPage() {
               {data.title}
             </motion.span>
 
-            {/* Tagline with single-run typewriter + cursor (mirrors Hero) */}
             <HeroTagline text={data.tagline} />
 
             <motion.p
@@ -315,21 +373,22 @@ export default function CategoryPage() {
               {data.intro}
             </motion.p>
 
-            {/* CTA */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.26 }}
               className="flex flex-wrap gap-4"
             >
-              <Link href="/marketplace">
+              <Link href={marketplaceHref}>
                 <motion.span
                   whileHover={{ scale: 1.04, y: -2 }}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/25 cursor-pointer"
                 >
                   Shop Now
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
                 </motion.span>
               </Link>
               <Link href="/#categories">
@@ -344,21 +403,11 @@ export default function CategoryPage() {
             </motion.div>
           </div>
 
-          {/* Right: Floating image */}
           <div className="flex items-center justify-center">
             <div className="relative w-full max-w-lg aspect-square">
-              {/* Glow ring */}
-              <div
-                className="absolute inset-10 rounded-full blur-3xl opacity-30"
-                style={{ background: data.accentHex }}
-              />
-              {/* Floating device */}
+              <div className="absolute inset-10 rounded-full blur-3xl opacity-30" style={{ background: data.accentHex }} />
               <motion.div
-                animate={{
-                  y: [0, -18, 0, 18, 0],
-                  rotate: [0, 2, 0, -2, 0],
-                  scale: [1, 1.02, 1, 1.02, 1],
-                }}
+                animate={{ y: [0, -18, 0, 18, 0], rotate: [0, 2, 0, -2, 0], scale: [1, 1.02, 1, 1.02, 1] }}
                 transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
                 className="relative w-full h-full flex items-center justify-center drop-shadow-2xl"
               >
@@ -367,19 +416,70 @@ export default function CategoryPage() {
                   src={data.image}
                   alt={data.title}
                   className="w-full h-full object-contain"
-                  onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/images/smartwatch.png';
+                  }}
                 />
               </motion.div>
             </div>
           </div>
         </div>
 
-        {/* Bottom fade */}
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#07070a] to-transparent pointer-events-none" />
       </section>
 
-      {/* ── Feature Badges ── */}
-      <section className="py-10 border-y border-white/5 bg-white/[0.02]">
+      <section className="py-16 border-y border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Shop {data.title}</h2>
+            <p className="text-white/50 text-sm">Live listings from the CBRIXI catalogue</p>
+          </div>
+
+          {productsLoading ? (
+            <div className="flex justify-center py-12">
+              <svg className="w-8 h-8 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            </div>
+          ) : productsError ? (
+            <p className="text-center text-white/50 py-10">Could not load products for this category.</p>
+          ) : products.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-white/50 mb-4">No products in this category yet.</p>
+              <Link href="/marketplace" className="text-blue-400 hover:text-blue-300 text-sm font-semibold">
+                Browse all products
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/product/${p.id}`}
+                  className="group rounded-2xl border border-white/10 bg-[#111116] overflow-hidden hover:border-white/25 transition-colors"
+                >
+                  <div className="aspect-square bg-white flex items-center justify-center p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.image} alt={p.name} className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-medium text-white truncate mb-1">{p.name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-blue-300">{formatMoney(getSellingPrice(p))}</p>
+                      {hasActiveDiscount(p) && (
+                        <span className="text-xs text-white/40 line-through">{formatMoney(p.price)}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="py-10 border-b border-white/5 bg-white/[0.02]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
@@ -402,7 +502,6 @@ export default function CategoryPage() {
         </div>
       </section>
 
-      {/* ── Newsletter / Editorial Sections ── */}
       <section className="py-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="space-y-28">
           {data.sections.map((sec, i) => {
@@ -414,11 +513,9 @@ export default function CategoryPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-80px' }}
                 transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                className={`grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center ${isEven ? '' : 'lg:flex-row-reverse'}`}
+                className={`grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center`}
               >
-                {/* Text side */}
                 <div className={isEven ? '' : 'lg:order-2'}>
-                  {/* Section number */}
                   <motion.p
                     initial={{ opacity: 0, y: 16 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -439,7 +536,8 @@ export default function CategoryPage() {
                     {sec.heading}
                   </motion.h2>
 
-                  <div className={`w-12 h-1 rounded-full mb-6 bg-gradient-to-r`}
+                  <div
+                    className="w-12 h-1 rounded-full mb-6"
                     style={{ background: `linear-gradient(90deg, ${data.accentHex}, transparent)` }}
                   />
 
@@ -454,26 +552,25 @@ export default function CategoryPage() {
                   </motion.p>
                 </div>
 
-                {/* Visual card side */}
                 <div className={isEven ? 'lg:order-2' : 'lg:order-1'}>
                   <motion.div
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: 'spring', stiffness: 280, damping: 20 }}
                     className={`relative rounded-3xl overflow-hidden border ${ac.border} bg-gradient-to-br ${data.gradient} p-10 flex items-center justify-center min-h-[280px]`}
                   >
-                    {/* Ambient glow inside card */}
                     <div
                       className="absolute inset-0 opacity-10 blur-2xl"
                       style={{ background: `radial-gradient(circle at 50% 50%, ${data.accentHex}, transparent 70%)` }}
                     />
-                    {/* Realistic image instead of emoji icon */}
                     <div className="relative z-10 flex items-center justify-center w-full h-full">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={data.image}
                         alt={sec.heading}
                         className="object-contain max-h-[220px]"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/images/smartwatch.png'; }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/images/smartwatch.png';
+                        }}
                       />
                     </div>
                   </motion.div>
@@ -484,7 +581,6 @@ export default function CategoryPage() {
         </div>
       </section>
 
-      {/* ── Bottom CTA Banner ── */}
       <section className="py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
@@ -494,26 +590,26 @@ export default function CategoryPage() {
             transition={{ duration: 0.7 }}
             className={`relative rounded-3xl overflow-hidden border ${ac.border} bg-gradient-to-br ${data.gradient} p-12 text-center`}
           >
-            {/* Glow */}
-            <div className="absolute inset-0 pointer-events-none"
+            <div
+              className="absolute inset-0 pointer-events-none"
               style={{ background: `radial-gradient(ellipse at 50% 0%, ${data.accentHex}22, transparent 70%)` }}
             />
             <p className="text-5xl mb-5">{data.icon}</p>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
               Ready to explore <span className="gradient-text">{data.title}</span>?
             </h2>
-            <p className="text-white/60 text-lg mb-8 max-w-xl mx-auto">
-              Browse the full CBRIXI catalogue and find the perfect device for you.
-            </p>
+            <p className="text-white/60 text-lg mb-8 max-w-xl mx-auto">Browse the full CBRIXI catalogue and find the perfect device for you.</p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/marketplace">
+              <Link href={marketplaceHref}>
                 <motion.span
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30 cursor-pointer text-lg"
                 >
                   Visit Marketplace
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
                 </motion.span>
               </Link>
               <Link href="/#categories">
@@ -530,11 +626,7 @@ export default function CategoryPage() {
         </div>
       </section>
 
-      {/* ── Footer micro ── */}
-      <div className="text-center py-10 border-t border-white/5 text-white/20 text-sm">
-        © 2026 CBRIXI — Smart Devices for a Smarter Life
-      </div>
-
+      <div className="text-center py-10 border-t border-white/5 text-white/20 text-sm">© 2026 CBRIXI — Smart Devices for a Smarter Life</div>
     </main>
   );
 }

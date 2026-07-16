@@ -23,6 +23,46 @@ export type ConversationUpdate = SupportConversation & {
   conversation_id: string;
 };
 
+export type SupportPagination = {
+  page: number;
+  limit: number;
+  offset: number;
+  total: number;
+  total_pages: number;
+  has_more: boolean;
+  has_previous: boolean;
+};
+
+export const EMPTY_SUPPORT_PAGINATION: SupportPagination = {
+  page: 1,
+  limit: 50,
+  offset: 0,
+  total: 0,
+  total_pages: 1,
+  has_more: false,
+  has_previous: false,
+};
+
+export function normalizeSupportPagination(
+  raw?: Partial<SupportPagination> | null,
+  fallbackLimit = 50
+): SupportPagination {
+  const page = Number(raw?.page ?? 1) || 1;
+  const limit = Number(raw?.limit ?? fallbackLimit) || fallbackLimit;
+  const offset = Number(raw?.offset ?? (page - 1) * limit) || 0;
+  const total = Number(raw?.total ?? 0) || 0;
+  const total_pages = Number(raw?.total_pages ?? Math.max(1, Math.ceil(total / limit) || 1)) || 1;
+  return {
+    page,
+    limit,
+    offset,
+    total,
+    total_pages,
+    has_more: Boolean(raw?.has_more),
+    has_previous: Boolean(raw?.has_previous ?? page > 1),
+  };
+}
+
 export interface SupportMessage {
   id: string;
   conversation_id: string;
@@ -37,6 +77,12 @@ export interface SupportMessage {
   sender_lastname?: string | null;
   sender_username?: string | null;
   sender_email?: string | null;
+}
+
+export function sortSupportMessages(messages: SupportMessage[]): SupportMessage[] {
+  return [...messages].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 }
 
 export const getSupportCustomerName = (conversation: SupportConversation) =>

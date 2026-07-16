@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import Navbar from '../../../../components/Navbar';
+import { PlacementBanner } from '../../../../components/campaigns/HeroBanner';
 import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
@@ -331,6 +332,10 @@ export default function CategoryPage() {
   return (
     <main className="min-h-screen bg-[#07070a] text-white overflow-x-hidden">
       <Navbar />
+      <PlacementBanner placement="TOP_BANNER" compact />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <PlacementBanner placement="CATEGORY_PAGE" />
+      </div>
 
       <section className="relative min-h-[92vh] flex items-center overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
@@ -626,6 +631,7 @@ export default function CategoryPage() {
         </div>
       </section>
 
+      <PlacementBanner placement="BOTTOM_BANNER" />
       <div className="text-center py-10 border-t border-white/5 text-white/20 text-sm">© 2026 CBRIXI — Smart Devices for a Smarter Life</div>
     </main>
   );

@@ -4,15 +4,22 @@ import WeeklyShowcase from '../../components/WeeklyShowcase';
 import Categories from '../../components/Categories';
 import WhyChoose from '../../components/WhyChoose';
 import CbrixiLogo from '../../components/CbrixiLogo';
+import CampaignPopup from '../../components/campaigns/CampaignPopup';
+import HeroBanner from '../../components/campaigns/HeroBanner';
+import { PlacementBanner } from '../../components/campaigns/HeroBanner';
 
 export default function Home() {
   return (
     <main className="relative min-h-screen z-0">
+      <CampaignPopup />
       <Navbar />
+      <PlacementBanner placement="TOP_BANNER" compact />
+      <HeroBanner />
       <Hero />
       <WeeklyShowcase />
       <Categories />
       <WhyChoose />
+      <PlacementBanner placement="BOTTOM_BANNER" />
       <Footer />
     </main>
   );
@@ -22,6 +29,7 @@ function Footer() {
   return (
     <footer className="relative border-t border-white/8 py-12 mt-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <PlacementBanner placement="FOOTER" className="mb-10 !border-0 !bg-transparent" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Brand */}
           <div className="md:col-span-1">

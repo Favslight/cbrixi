@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CbrixiLogo from '@/components/CbrixiLogo';
 import MobileNavMenu from '@/components/MobileNavMenu';
+import { PlacementBanner } from '@/components/campaigns/HeroBanner';
 import { Product } from '@/lib/productsStore';
 import { formatMoney, getSellingPrice, hasActiveDiscount, toNumber } from '@/lib/pricing';
 
@@ -412,6 +413,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PlacementBanner placement="PRODUCT_PAGE" className="mb-6" />
         {/* Back to Marketplace */}
         <div className="mb-6">
           <Link href="/marketplace" className="inline-flex items-center gap-2 text-white/60 hover:text-white transition-colors">

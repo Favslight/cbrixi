@@ -1,6 +1,7 @@
 import Marketplace from '../../../components/Marketplace';
 import Link from 'next/link';
 import CbrixiLogo from '../../../components/CbrixiLogo';
+import { PlacementBanner } from '../../../components/campaigns/HeroBanner';
 
 const FOOTER_CATEGORIES = [
   { label: 'Smart Watches', slug: 'smart-watches' },
@@ -12,7 +13,9 @@ const FOOTER_CATEGORIES = [
 export default function MarketplacePage() {
   return (
     <main className="relative min-h-screen z-0">
+      <PlacementBanner placement="TOP_BANNER" compact />
       <Marketplace />
+      <PlacementBanner placement="BOTTOM_BANNER" />
       <Footer />
     </main>
   );
@@ -22,6 +25,7 @@ function Footer() {
   return (
     <footer className="relative border-t border-white/8 py-12 mt-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <PlacementBanner placement="FOOTER" className="mb-10 !border-0 !bg-transparent" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="md:col-span-1">
             <CbrixiLogo size={26} textSize="text-base" className="mb-4" />

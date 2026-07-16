@@ -7,7 +7,7 @@ import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 import { useRouter } from 'next/navigation';
 import CbrixiLogo from './CbrixiLogo';
 import MobileNavMenu from './MobileNavMenu';
-
+import { PlacementBanner } from './campaigns/HeroBanner';
 
 function ProductPrice({ product, variant = 'card' }: { product: Product; variant?: 'card' | 'modal' }) {
   const discounted = hasActiveDiscount(product);
@@ -453,6 +453,12 @@ export default function Marketplace() {
           </div>
         </div>
 
+        <div className="max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-8 mb-6">
+          <div className="flex flex-col lg:flex-row gap-6">
+            <aside className="hidden lg:block w-56 shrink-0">
+              <PlacementBanner placement="SIDEBAR" className="sticky top-24" />
+            </aside>
+            <div className="min-w-0 flex-1">
         {loading ? (
           <div className="flex justify-center py-20">
             <svg className="w-8 h-8 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
@@ -522,6 +528,9 @@ export default function Marketplace() {
             ))}
           </div>
         )}
+            </div>
+          </div>
+        </div>
 
       <AnimatePresence>
         {selectedProduct && (

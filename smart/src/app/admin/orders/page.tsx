@@ -74,7 +74,7 @@ export default function AdminOrdersPage() {
   const [rejectedId, setRejectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'APPROVE' | 'REJECT' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -125,6 +125,29 @@ export default function AdminOrdersPage() {
         }, 1000);
       } else {
         setError(data.message || `Failed to ${actionUrl} order.`);
+      }
+    } catch {
+      setError('Connection error.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setConfirmAction(null);
+    setProcessingId(id);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken') ?? '';
+      const res = await fetch(`${API_URL}/admin/orders/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success !== false) {
+        setOrders((prev) => prev.filter((order) => order.id !== id));
+      } else {
+        setError(data.message || 'Failed to delete order.');
       }
     } catch {
       setError('Connection error.');
@@ -248,6 +271,7 @@ export default function AdminOrdersPage() {
                   confirmAction={confirmAction}
                   setConfirmAction={setConfirmAction}
                   onAction={handleAction}
+                  onDelete={handleDelete}
                 />
               ))}
             </AnimatePresence>
@@ -281,6 +305,7 @@ export default function AdminOrdersPage() {
                       confirmAction={confirmAction}
                       setConfirmAction={setConfirmAction}
                       onAction={handleAction}
+                      onDelete={handleDelete}
                     />
                   ))}
                 </AnimatePresence>
@@ -312,6 +337,7 @@ function OrderCard({
   confirmAction,
   setConfirmAction,
   onAction,
+  onDelete,
 }: {
   order: AdminOrder;
   index: number;
@@ -319,9 +345,10 @@ function OrderCard({
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
-  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
-  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <motion.div
@@ -332,18 +359,18 @@ function OrderCard({
       className={`rounded-2xl border border-white/8 bg-white/[0.03] p-4 ${successId === order.id ? 'ring-1 ring-green-500/30' : ''} ${rejectedId === order.id ? 'ring-1 ring-red-500/30' : ''}`}
     >
       <OrderSummaryBlock order={order} />
-      {isPending && (
-        <OrderActions
-          order={order}
-          processingId={processingId}
-          successId={successId}
-          rejectedId={rejectedId}
-          confirmAction={confirmAction}
-          setConfirmAction={setConfirmAction}
-          onAction={onAction}
-          mobile
-        />
-      )}
+      <OrderActions
+        order={order}
+        isPending={isPending}
+        processingId={processingId}
+        successId={successId}
+        rejectedId={rejectedId}
+        confirmAction={confirmAction}
+        setConfirmAction={setConfirmAction}
+        onAction={onAction}
+        onDelete={onDelete}
+        mobile
+      />
     </motion.div>
   );
 }
@@ -358,6 +385,7 @@ function OrderRow({
   confirmAction,
   setConfirmAction,
   onAction,
+  onDelete,
 }: {
   order: AdminOrder;
   index: number;
@@ -365,9 +393,10 @@ function OrderRow({
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
-  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
-  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <motion.tr
@@ -398,19 +427,17 @@ function OrderRow({
       </td>
       <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(order.created_at)}</td>
       <td className="px-4 py-4 text-right">
-        {isPending ? (
-          <OrderActions
-            order={order}
-            processingId={processingId}
-            successId={successId}
-            rejectedId={rejectedId}
-            confirmAction={confirmAction}
-            setConfirmAction={setConfirmAction}
-            onAction={onAction}
-          />
-        ) : (
-          <StatusBadge status={order.status} />
-        )}
+        <OrderActions
+          order={order}
+          isPending={isPending}
+          processingId={processingId}
+          successId={successId}
+          rejectedId={rejectedId}
+          confirmAction={confirmAction}
+          setConfirmAction={setConfirmAction}
+          onAction={onAction}
+          onDelete={onDelete}
+        />
       </td>
     </motion.tr>
   );
@@ -510,41 +537,65 @@ function VerificationBlock({ order }: { order: AdminOrder }) {
 
 function OrderActions({
   order,
+  isPending,
   processingId,
   successId,
   rejectedId,
   confirmAction,
   setConfirmAction,
   onAction,
+  onDelete,
   mobile,
 }: {
   order: AdminOrder;
+  isPending: boolean;
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
-  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
-  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  onDelete: (id: string) => void;
   mobile?: boolean;
 }) {
   const currentConfirm = confirmAction?.id === order.id ? confirmAction.type : null;
   const buttonBase = mobile ? 'w-full py-2.5 rounded-xl text-sm font-bold' : 'px-3 py-1.5 rounded-lg text-xs font-bold';
 
   if (currentConfirm) {
+    const isDelete = currentConfirm === 'DELETE';
     return (
       <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-stretch min-w-[280px]'} gap-2 text-left`}>
         <div className="rounded-xl border border-white/8 bg-black/20 p-3">
-          <p className="text-white text-xs font-semibold">{orderSummary(order)}</p>
+          <p className="text-white text-xs font-semibold">
+            {isDelete ? 'Permanently delete this order?' : orderSummary(order)}
+          </p>
+          <p className="text-white/40 text-[11px] mt-1">Order: {orderSummary(order)}</p>
           <p className="text-white/40 text-[11px] mt-1">Order ID: {shortId(order.id)}</p>
-          <OrderItemsList items={order.order_items ?? []} compact />
+          {isDelete && (
+            <p className="text-red-300/80 text-[11px] mt-2">
+              This removes order items, installments, payments, and related referral rewards.
+            </p>
+          )}
+          {!isDelete && <OrderItemsList items={order.order_items ?? []} compact />}
         </div>
         <button
           type="button"
-          onClick={() => onAction(order.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject')}
+          onClick={() => {
+            if (isDelete) onDelete(order.id);
+            else onAction(order.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject');
+          }}
           disabled={processingId === order.id}
-          className={`${buttonBase} text-white flex items-center justify-center gap-2 disabled:opacity-50 ${currentConfirm === 'APPROVE' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'}`}
+          className={`${buttonBase} text-white flex items-center justify-center gap-2 disabled:opacity-50 ${
+            currentConfirm === 'APPROVE' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'
+          }`}
         >
-          {processingId === order.id ? <><Spinner sm /> Processing...</> : `Confirm ${currentConfirm === 'APPROVE' ? 'approval' : 'rejection'}`}
+          {processingId === order.id ? (
+            <><Spinner sm /> Processing...</>
+          ) : isDelete ? (
+            'Confirm delete'
+          ) : (
+            `Confirm ${currentConfirm === 'APPROVE' ? 'approval' : 'rejection'}`
+          )}
         </button>
         <button
           type="button"
@@ -558,23 +609,38 @@ function OrderActions({
   }
 
   return (
-    <div className={`flex ${mobile ? 'grid grid-cols-2 mt-4 pt-3 border-t border-white/8' : 'items-center justify-end'} gap-2`}>
-      <button
-        type="button"
-        onClick={() => setConfirmAction({ id: order.id, type: 'APPROVE' })}
-        disabled={processingId === order.id || successId === order.id || rejectedId === order.id || order.external_email_exists === false}
-        className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 disabled:opacity-40`}
-      >
-        {successId === order.id ? 'Approved' : 'Approve'}
-      </button>
-      <button
-        type="button"
-        onClick={() => setConfirmAction({ id: order.id, type: 'REJECT' })}
-        disabled={processingId === order.id || successId === order.id || rejectedId === order.id}
-        className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 disabled:opacity-40`}
-      >
-        {rejectedId === order.id ? 'Rejected' : 'Reject'}
-      </button>
+    <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-end'} gap-2`}>
+      {!mobile && !isPending && <StatusBadge status={order.status} />}
+      <div className={`flex ${mobile ? 'grid grid-cols-2' : 'items-center justify-end flex-wrap'} gap-2`}>
+        {isPending && (
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirmAction({ id: order.id, type: 'APPROVE' })}
+              disabled={processingId === order.id || successId === order.id || rejectedId === order.id || order.external_email_exists === false}
+              className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 disabled:opacity-40`}
+            >
+              {successId === order.id ? 'Approved' : 'Approve'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmAction({ id: order.id, type: 'REJECT' })}
+              disabled={processingId === order.id || successId === order.id || rejectedId === order.id}
+              className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 disabled:opacity-40`}
+            >
+              {rejectedId === order.id ? 'Rejected' : 'Reject'}
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setConfirmAction({ id: order.id, type: 'DELETE' })}
+          disabled={processingId === order.id}
+          className={`${mobile ? `${isPending ? 'col-span-2' : ''} py-2.5 rounded-xl text-xs` : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-300 border border-red-500/25 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-40`}
+        >
+          Delete
+        </button>
+      </div>
     </div>
   );
 }

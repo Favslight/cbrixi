@@ -104,7 +104,7 @@ export default function AdminPaymentsPage() {
   const [rejectedId, setRejectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'APPROVE' | 'REJECT' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null>(null);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -155,6 +155,29 @@ export default function AdminPaymentsPage() {
         }, 1000);
       } else {
         setError(data.message || `Failed to ${actionUrl} payment.`);
+      }
+    } catch {
+      setError('Connection error.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setConfirmAction(null);
+    setProcessingId(id);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken') ?? '';
+      const res = await fetch(`${API_URL}/admin/payments/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success !== false) {
+        setPayments((prev) => prev.filter((payment) => payment.id !== id));
+      } else {
+        setError(data.message || 'Failed to delete payment.');
       }
     } catch {
       setError('Connection error.');
@@ -279,6 +302,7 @@ export default function AdminPaymentsPage() {
                   confirmAction={confirmAction}
                   setConfirmAction={setConfirmAction}
                   onAction={handleAction}
+                  onDelete={handleDelete}
                 />
               ))}
             </AnimatePresence>
@@ -313,6 +337,7 @@ export default function AdminPaymentsPage() {
                       confirmAction={confirmAction}
                       setConfirmAction={setConfirmAction}
                       onAction={handleAction}
+                      onDelete={handleDelete}
                     />
                   ))}
                 </AnimatePresence>
@@ -344,6 +369,7 @@ function PaymentCard({
   confirmAction,
   setConfirmAction,
   onAction,
+  onDelete,
 }: {
   payment: AdminPayment;
   index: number;
@@ -351,9 +377,10 @@ function PaymentCard({
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
-  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
-  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <motion.div
@@ -364,18 +391,18 @@ function PaymentCard({
       className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"
     >
       <PaymentSummary payment={payment} />
-      {isPending && (
-        <PaymentActions
-          payment={payment}
-          processingId={processingId}
-          successId={successId}
-          rejectedId={rejectedId}
-          confirmAction={confirmAction}
-          setConfirmAction={setConfirmAction}
-          onAction={onAction}
-          mobile
-        />
-      )}
+      <PaymentActions
+        payment={payment}
+        isPending={isPending}
+        processingId={processingId}
+        successId={successId}
+        rejectedId={rejectedId}
+        confirmAction={confirmAction}
+        setConfirmAction={setConfirmAction}
+        onAction={onAction}
+        onDelete={onDelete}
+        mobile
+      />
     </motion.div>
   );
 }
@@ -390,6 +417,7 @@ function PaymentRow({
   confirmAction,
   setConfirmAction,
   onAction,
+  onDelete,
 }: {
   payment: AdminPayment;
   index: number;
@@ -397,9 +425,10 @@ function PaymentRow({
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
-  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
-  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <motion.tr
@@ -439,19 +468,17 @@ function PaymentRow({
       </td>
       <td className="px-4 py-4 text-white/50 text-xs">{fmtDate(payment.created_at)}</td>
       <td className="px-4 py-4 text-right">
-        {isPending ? (
-          <PaymentActions
-            payment={payment}
-            processingId={processingId}
-            successId={successId}
-            rejectedId={rejectedId}
-            confirmAction={confirmAction}
-            setConfirmAction={setConfirmAction}
-            onAction={onAction}
-          />
-        ) : (
-          <StatusBadge status={payment.status} />
-        )}
+        <PaymentActions
+          payment={payment}
+          isPending={isPending}
+          processingId={processingId}
+          successId={successId}
+          rejectedId={rejectedId}
+          confirmAction={confirmAction}
+          setConfirmAction={setConfirmAction}
+          onAction={onAction}
+          onDelete={onDelete}
+        />
       </td>
     </motion.tr>
   );
@@ -481,46 +508,70 @@ function PaymentSummary({ payment }: { payment: AdminPayment }) {
 
 function PaymentActions({
   payment,
+  isPending,
   processingId,
   successId,
   rejectedId,
   confirmAction,
   setConfirmAction,
   onAction,
+  onDelete,
   mobile,
 }: {
   payment: AdminPayment;
+  isPending: boolean;
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
-  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' } | null;
-  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' } | null) => void;
+  confirmAction: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null;
+  setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
+  onDelete: (id: string) => void;
   mobile?: boolean;
 }) {
   const currentConfirm = confirmAction?.id === payment.id ? confirmAction.type : null;
   const buttonBase = mobile ? 'w-full py-2.5 rounded-xl text-sm font-bold' : 'px-3 py-1.5 rounded-lg text-xs font-bold';
 
   if (currentConfirm) {
+    const isDelete = currentConfirm === 'DELETE';
     return (
       <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-stretch min-w-[320px]'} gap-2 text-left`}>
         <div className="rounded-xl border border-white/8 bg-black/20 p-3 space-y-2">
-          <p className="text-white text-xs font-semibold">{getPaymentTitle(payment)}</p>
+          <p className="text-white text-xs font-semibold">
+            {isDelete ? 'Permanently delete this payment?' : getPaymentTitle(payment)}
+          </p>
           <div className="grid grid-cols-1 gap-1 text-[11px] text-white/50">
             <p>Order: <span className="text-white/75">{orderSummary(payment)}</span></p>
             <p>Reference: <span className="text-white/75">{payment.reference || 'N/A'}</span></p>
             <p>Amount: <span className="text-white/75">{formatMoney(payment.amount)}</span></p>
             <p>Method: <span className="text-white/75">{payment.payment_method}</span></p>
           </div>
-          <OrderItemsList items={orderItems(payment)} compact />
+          {isDelete ? (
+            <p className="text-red-300/80 text-[11px]">
+              Related referral rewards are removed. Successful payments will recalculate order balance.
+            </p>
+          ) : (
+            <OrderItemsList items={orderItems(payment)} compact />
+          )}
         </div>
         <button
           type="button"
-          onClick={() => onAction(payment.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject')}
+          onClick={() => {
+            if (isDelete) onDelete(payment.id);
+            else onAction(payment.id, currentConfirm === 'APPROVE' ? 'approve' : 'reject');
+          }}
           disabled={processingId === payment.id}
-          className={`${buttonBase} text-white flex items-center justify-center gap-2 disabled:opacity-50 ${currentConfirm === 'APPROVE' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'}`}
+          className={`${buttonBase} text-white flex items-center justify-center gap-2 disabled:opacity-50 ${
+            currentConfirm === 'APPROVE' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'
+          }`}
         >
-          {processingId === payment.id ? <><Spinner sm /> Processing...</> : `Confirm ${currentConfirm === 'APPROVE' ? 'approval' : 'rejection'}`}
+          {processingId === payment.id ? (
+            <><Spinner sm /> Processing...</>
+          ) : isDelete ? (
+            'Confirm delete'
+          ) : (
+            `Confirm ${currentConfirm === 'APPROVE' ? 'approval' : 'rejection'}`
+          )}
         </button>
         <button
           type="button"
@@ -534,23 +585,38 @@ function PaymentActions({
   }
 
   return (
-    <div className={`flex ${mobile ? 'grid grid-cols-2 mt-4 pt-3 border-t border-white/8' : 'items-center justify-end'} gap-2`}>
-      <button
-        type="button"
-        onClick={() => setConfirmAction({ id: payment.id, type: 'APPROVE' })}
-        disabled={processingId === payment.id || successId === payment.id || rejectedId === payment.id}
-        className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 disabled:opacity-40`}
-      >
-        {successId === payment.id ? 'Approved' : 'Approve'}
-      </button>
-      <button
-        type="button"
-        onClick={() => setConfirmAction({ id: payment.id, type: 'REJECT' })}
-        disabled={processingId === payment.id || successId === payment.id || rejectedId === payment.id}
-        className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 disabled:opacity-40`}
-      >
-        {rejectedId === payment.id ? 'Rejected' : 'Reject'}
-      </button>
+    <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-end'} gap-2`}>
+      {!mobile && !isPending && <StatusBadge status={payment.status} />}
+      <div className={`flex ${mobile ? 'grid grid-cols-2' : 'items-center justify-end flex-wrap'} gap-2`}>
+        {isPending && (
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirmAction({ id: payment.id, type: 'APPROVE' })}
+              disabled={processingId === payment.id || successId === payment.id || rejectedId === payment.id}
+              className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/15 disabled:opacity-40`}
+            >
+              {successId === payment.id ? 'Approved' : 'Approve'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmAction({ id: payment.id, type: 'REJECT' })}
+              disabled={processingId === payment.id || successId === payment.id || rejectedId === payment.id}
+              className={`${mobile ? 'py-2.5 rounded-xl text-xs' : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-400 border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 disabled:opacity-40`}
+            >
+              {rejectedId === payment.id ? 'Rejected' : 'Reject'}
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setConfirmAction({ id: payment.id, type: 'DELETE' })}
+          disabled={processingId === payment.id}
+          className={`${mobile ? `${isPending ? 'col-span-2' : ''} py-2.5 rounded-xl text-xs` : 'px-4 py-1.5 rounded-lg text-xs'} font-semibold text-red-300 border border-red-500/25 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-40`}
+        >
+          Delete
+        </button>
+      </div>
     </div>
   );
 }

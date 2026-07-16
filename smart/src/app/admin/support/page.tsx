@@ -189,9 +189,20 @@ export default function AdminSupportPage() {
   const handleSelect = (conv: SupportConversation) => {
     setSelectedId(conv.id ?? null);
     setSelectedConversation(conv);
+    setError("");
+    setInput("");
     setConversations((prev) =>
       prev.map((c) => (c.id === conv.id ? { ...c, unread_count: 0 } : c))
     );
+  };
+
+  const handleBackToList = () => {
+    setSelectedId(null);
+    setSelectedConversation(null);
+    setMessages([]);
+    setMessagesPagination(EMPTY_SUPPORT_PAGINATION);
+    setError("");
+    setInput("");
   };
 
   const handleLoadOlderMessages = () => {
@@ -257,20 +268,25 @@ export default function AdminSupportPage() {
   const customerName = headerConversation ? getSupportCustomerName(headerConversation) : "Customer";
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto h-[calc(100vh-4rem)] flex flex-col">
-      <div className="mb-6">
+    <div className="p-3 sm:p-8 max-w-7xl mx-auto h-[calc(100dvh-4.5rem)] sm:h-[calc(100vh-4rem)] flex flex-col">
+      <div className={`mb-4 sm:mb-6 ${selectedId ? "hidden sm:block" : ""}`}>
         <h1 className="text-2xl font-bold mb-1">Support Inbox</h1>
         <p className="text-white/50 text-sm">
           Only conversations where customers have sent at least one message are listed.
         </p>
       </div>
 
-      <div className="flex-1 flex gap-4 min-h-0 border border-white/10 rounded-2xl overflow-hidden bg-white/[0.02]">
-        <div className="w-full sm:w-80 border-r border-white/10 flex flex-col min-h-0">
+      <div className="flex-1 flex min-h-0 border border-white/10 rounded-2xl overflow-hidden bg-white/[0.02]">
+        {/* Conversation list — full width on mobile until a chat is opened */}
+        <div
+          className={`w-full sm:w-80 sm:border-r border-white/10 flex-col min-h-0 ${
+            selectedId ? "hidden sm:flex" : "flex"
+          }`}
+        >
           <div className="p-3 border-b border-white/10 text-sm font-semibold text-white/60">
             Conversations
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto overscroll-contain">
             {loadingList ? (
               <div className="p-4 text-white/40 text-sm animate-pulse">Loading...</div>
             ) : conversations.length === 0 ? (
@@ -282,7 +298,7 @@ export default function AdminSupportPage() {
                   <button
                     key={conv.id}
                     onClick={() => handleSelect(conv)}
-                    className={`w-full text-left p-4 border-b border-white/5 hover:bg-white/5 transition-colors ${
+                    className={`w-full text-left p-4 border-b border-white/5 hover:bg-white/5 active:bg-white/10 transition-colors ${
                       selectedId === conv.id ? "bg-blue-500/10 border-l-2 border-l-blue-500" : ""
                     }`}
                   >
@@ -311,7 +327,7 @@ export default function AdminSupportPage() {
             )}
           </div>
 
-          <div className="p-3 border-t border-white/10 space-y-2">
+          <div className="p-3 border-t border-white/10 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <p className="text-[11px] text-white/40 text-center">
               Page {listPagination.page} of {listPagination.total_pages} ({listPagination.total} chats)
             </p>
@@ -320,7 +336,7 @@ export default function AdminSupportPage() {
                 type="button"
                 disabled={!listPagination.has_previous || loadingList}
                 onClick={() => fetchConversations(listPagination.page - 1)}
-                className="flex-1 py-2 rounded-lg border border-white/10 text-xs font-semibold text-white/70 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 rounded-lg border border-white/10 text-xs font-semibold text-white/70 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
@@ -328,7 +344,7 @@ export default function AdminSupportPage() {
                 type="button"
                 disabled={!listPagination.has_more || loadingList}
                 onClick={() => fetchConversations(listPagination.page + 1)}
-                className="flex-1 py-2 rounded-lg border border-white/10 text-xs font-semibold text-white/70 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 rounded-lg border border-white/10 text-xs font-semibold text-white/70 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -336,21 +352,38 @@ export default function AdminSupportPage() {
           </div>
         </div>
 
-        <div className="hidden sm:flex flex-1 flex-col min-h-0">
+        {/* Chat panel — full screen on mobile when a conversation is selected */}
+        <div
+          className={`flex-1 flex-col min-h-0 min-w-0 ${
+            selectedId ? "flex" : "hidden sm:flex"
+          }`}
+        >
           {!selectedId ? (
-            <div className="flex-1 flex items-center justify-center text-white/40 text-sm">
+            <div className="flex-1 flex items-center justify-center text-white/40 text-sm px-4 text-center">
               Select a conversation to reply
             </div>
           ) : (
             <>
-              <div className="p-4 border-b border-white/10">
-                <h2 className="font-semibold">{customerName}</h2>
-                {headerConversation?.email && (
-                  <p className="text-xs text-white/40 mt-0.5">{headerConversation.email}</p>
-                )}
+              <div className="p-3 sm:p-4 border-b border-white/10 flex items-start gap-3">
+                <button
+                  type="button"
+                  onClick={handleBackToList}
+                  className="sm:hidden shrink-0 mt-0.5 inline-flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
+                  aria-label="Back to conversations"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-semibold truncate">{customerName}</h2>
+                  {headerConversation?.email && (
+                    <p className="text-xs text-white/40 mt-0.5 truncate">{headerConversation.email}</p>
+                  )}
+                </div>
               </div>
 
-              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-4">
                 {messagesPagination.has_more && (
                   <div className="flex justify-center">
                     <button
@@ -378,7 +411,7 @@ export default function AdminSupportPage() {
                         {getMessageSenderName(msg)}
                       </span>
                       <div
-                        className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
+                        className={`max-w-[85%] sm:max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
                           msg.sender_type === "ADMIN"
                             ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-br-md"
                             : "bg-white/10 text-white/90 rounded-bl-md"
@@ -398,20 +431,23 @@ export default function AdminSupportPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {error && <div className="px-4 text-xs text-red-400">{error}</div>}
+              {error && <div className="px-4 pb-1 text-xs text-red-400">{error}</div>}
 
-              <form onSubmit={handleSend} className="p-4 border-t border-white/10 flex gap-2">
+              <form
+                onSubmit={handleSend}
+                className="p-3 sm:p-4 border-t border-white/10 flex gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              >
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Type your reply..."
-                  className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-sm outline-none focus:border-blue-500/50"
+                  className="flex-1 min-w-0 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm outline-none focus:border-blue-500/50"
                 />
                 <button
                   type="submit"
                   disabled={sending || !input.trim()}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-sm font-semibold disabled:opacity-50"
+                  className="shrink-0 px-4 sm:px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-sm font-semibold disabled:opacity-50"
                 >
                   Reply
                 </button>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "../../../components/Navbar";
+import OrderPaymentHistory from "@/components/receipts/OrderPaymentHistory";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.cbrixi.com";
 
@@ -435,6 +436,9 @@ function OrderCard({
                   amount: item.reference,
                 }))}
               />
+            </div>
+            <div className="mt-4">
+              <OrderPaymentHistory orderId={order.id} />
             </div>
           </motion.div>
         )}

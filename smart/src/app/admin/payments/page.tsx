@@ -18,6 +18,11 @@ import {
   variantsText,
 } from '@/lib/adminOrderDisplay';
 import { formatMoney } from '@/lib/pricing';
+import {
+  AdminPaymentReceiptActions,
+  receiptFromApproveResponse,
+} from '@/components/receipts/AdminPaymentReceiptActions';
+import type { Receipt } from '@/lib/receipts';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
@@ -48,6 +53,8 @@ interface AdminPayment extends AdminPaymentOrderDisplaySource {
   firstname?: string | null;
   lastname?: string | null;
   user_id: string;
+  receipt_number?: string | null;
+  receipt?: Receipt | null;
   order?: (AdminOrderDisplaySource & {
     id: string;
     payment_mode?: string;
@@ -103,8 +110,10 @@ export default function AdminPaymentsPage() {
   const [successId, setSuccessId] = useState<string | null>(null);
   const [rejectedId, setRejectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
   const [search, setSearch] = useState('');
   const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null>(null);
+  const [receiptByPaymentId, setReceiptByPaymentId] = useState<Record<string, Receipt>>({});
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -137,6 +146,7 @@ export default function AdminPaymentsPage() {
     setConfirmAction(null);
     setProcessingId(id);
     setError('');
+    setActionMessage('');
     try {
       const token = localStorage.getItem('adminToken') ?? '';
       const res = await fetch(`${API_URL}/admin/payments/${id}/${actionUrl}`, {
@@ -145,8 +155,16 @@ export default function AdminPaymentsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success !== false) {
-        if (actionUrl === 'approve') setSuccessId(id);
-        else setRejectedId(id);
+        if (actionUrl === 'approve') {
+          setSuccessId(id);
+          const receipt = receiptFromApproveResponse(data);
+          if (receipt) {
+            setReceiptByPaymentId((prev) => ({ ...prev, [id]: receipt }));
+            setActionMessage(`Approved. Receipt ${receipt.receipt_number} ready.`);
+          } else {
+            setActionMessage('Approved. Receipt will be available under View Receipt (auto-backfill if needed).');
+          }
+        } else setRejectedId(id);
 
         setTimeout(() => {
           setPayments((prev) => prev.filter((payment) => payment.id !== id));
@@ -206,6 +224,7 @@ export default function AdminPaymentsPage() {
   const activeTabMeta = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
   const totalAmount = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
   const isPending = activeTab === 'pending';
+  const isApproved = activeTab === 'approved';
 
   return (
     <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
@@ -232,6 +251,8 @@ export default function AdminPaymentsPage() {
               setActiveTab(tab.key);
               setSearch('');
               setConfirmAction(null);
+              setActionMessage('');
+              setError('');
             }}
             className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
               activeTab === tab.key
@@ -263,14 +284,18 @@ export default function AdminPaymentsPage() {
       </div>
 
       <AnimatePresence>
-        {error && (
+        {(error || actionMessage) && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
+            className={`mb-6 p-4 rounded-xl text-sm border ${
+              error
+                ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+            }`}
           >
-            {error}
+            {error || actionMessage}
           </motion.div>
         )}
       </AnimatePresence>
@@ -296,6 +321,7 @@ export default function AdminPaymentsPage() {
                   payment={payment}
                   index={index}
                   isPending={isPending}
+                  isApproved={isApproved}
                   processingId={processingId}
                   successId={successId}
                   rejectedId={rejectedId}
@@ -303,6 +329,15 @@ export default function AdminPaymentsPage() {
                   setConfirmAction={setConfirmAction}
                   onAction={handleAction}
                   onDelete={handleDelete}
+                  cachedReceipt={receiptByPaymentId[payment.id] ?? payment.receipt ?? null}
+                  onReceiptError={(msg) => {
+                    setActionMessage('');
+                    setError(msg);
+                  }}
+                  onReceiptMessage={(msg) => {
+                    setError('');
+                    setActionMessage(msg);
+                  }}
                 />
               ))}
             </AnimatePresence>
@@ -331,6 +366,7 @@ export default function AdminPaymentsPage() {
                       payment={payment}
                       index={index}
                       isPending={isPending}
+                      isApproved={isApproved}
                       processingId={processingId}
                       successId={successId}
                       rejectedId={rejectedId}
@@ -338,6 +374,15 @@ export default function AdminPaymentsPage() {
                       setConfirmAction={setConfirmAction}
                       onAction={handleAction}
                       onDelete={handleDelete}
+                      cachedReceipt={receiptByPaymentId[payment.id] ?? payment.receipt ?? null}
+                      onReceiptError={(msg) => {
+                        setActionMessage('');
+                        setError(msg);
+                      }}
+                      onReceiptMessage={(msg) => {
+                        setError('');
+                        setActionMessage(msg);
+                      }}
                     />
                   ))}
                 </AnimatePresence>
@@ -363,6 +408,7 @@ function PaymentCard({
   payment,
   index,
   isPending,
+  isApproved,
   processingId,
   successId,
   rejectedId,
@@ -370,10 +416,14 @@ function PaymentCard({
   setConfirmAction,
   onAction,
   onDelete,
+  cachedReceipt,
+  onReceiptError,
+  onReceiptMessage,
 }: {
   payment: AdminPayment;
   index: number;
   isPending: boolean;
+  isApproved: boolean;
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
@@ -381,6 +431,9 @@ function PaymentCard({
   setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
   onDelete: (id: string) => void;
+  cachedReceipt: Receipt | null;
+  onReceiptError: (message: string) => void;
+  onReceiptMessage: (message: string) => void;
 }) {
   return (
     <motion.div
@@ -394,6 +447,7 @@ function PaymentCard({
       <PaymentActions
         payment={payment}
         isPending={isPending}
+        isApproved={isApproved}
         processingId={processingId}
         successId={successId}
         rejectedId={rejectedId}
@@ -401,6 +455,9 @@ function PaymentCard({
         setConfirmAction={setConfirmAction}
         onAction={onAction}
         onDelete={onDelete}
+        cachedReceipt={cachedReceipt}
+        onReceiptError={onReceiptError}
+        onReceiptMessage={onReceiptMessage}
         mobile
       />
     </motion.div>
@@ -411,6 +468,7 @@ function PaymentRow({
   payment,
   index,
   isPending,
+  isApproved,
   processingId,
   successId,
   rejectedId,
@@ -418,10 +476,14 @@ function PaymentRow({
   setConfirmAction,
   onAction,
   onDelete,
+  cachedReceipt,
+  onReceiptError,
+  onReceiptMessage,
 }: {
   payment: AdminPayment;
   index: number;
   isPending: boolean;
+  isApproved: boolean;
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
@@ -429,6 +491,9 @@ function PaymentRow({
   setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
   onDelete: (id: string) => void;
+  cachedReceipt: Receipt | null;
+  onReceiptError: (message: string) => void;
+  onReceiptMessage: (message: string) => void;
 }) {
   return (
     <motion.tr
@@ -471,6 +536,7 @@ function PaymentRow({
         <PaymentActions
           payment={payment}
           isPending={isPending}
+          isApproved={isApproved}
           processingId={processingId}
           successId={successId}
           rejectedId={rejectedId}
@@ -478,6 +544,9 @@ function PaymentRow({
           setConfirmAction={setConfirmAction}
           onAction={onAction}
           onDelete={onDelete}
+          cachedReceipt={cachedReceipt}
+          onReceiptError={onReceiptError}
+          onReceiptMessage={onReceiptMessage}
         />
       </td>
     </motion.tr>
@@ -509,6 +578,7 @@ function PaymentSummary({ payment }: { payment: AdminPayment }) {
 function PaymentActions({
   payment,
   isPending,
+  isApproved,
   processingId,
   successId,
   rejectedId,
@@ -516,10 +586,14 @@ function PaymentActions({
   setConfirmAction,
   onAction,
   onDelete,
+  cachedReceipt,
+  onReceiptError,
+  onReceiptMessage,
   mobile,
 }: {
   payment: AdminPayment;
   isPending: boolean;
+  isApproved: boolean;
   processingId: string | null;
   successId: string | null;
   rejectedId: string | null;
@@ -527,6 +601,9 @@ function PaymentActions({
   setConfirmAction: (action: { id: string; type: 'APPROVE' | 'REJECT' | 'DELETE' } | null) => void;
   onAction: (id: string, actionUrl: 'approve' | 'reject') => void;
   onDelete: (id: string) => void;
+  cachedReceipt: Receipt | null;
+  onReceiptError: (message: string) => void;
+  onReceiptMessage: (message: string) => void;
   mobile?: boolean;
 }) {
   const currentConfirm = confirmAction?.id === payment.id ? confirmAction.type : null;
@@ -587,6 +664,16 @@ function PaymentActions({
   return (
     <div className={`flex ${mobile ? 'flex-col mt-4 pt-3 border-t border-white/8' : 'flex-col items-end'} gap-2`}>
       {!mobile && !isPending && <StatusBadge status={payment.status} />}
+      {isApproved && (
+        <AdminPaymentReceiptActions
+          paymentId={payment.id}
+          receiptNumber={cachedReceipt?.receipt_number ?? payment.receipt_number}
+          receipt={cachedReceipt ?? payment.receipt}
+          mobile={mobile}
+          onError={onReceiptError}
+          onMessage={onReceiptMessage}
+        />
+      )}
       <div className={`flex ${mobile ? 'grid grid-cols-2' : 'items-center justify-end flex-wrap'} gap-2`}>
         {isPending && (
           <>

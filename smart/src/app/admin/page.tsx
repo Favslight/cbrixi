@@ -94,6 +94,13 @@ export default function AdminDashboard() {
               <div className="min-w-0"><p className="font-semibold text-sm sm:text-base">Pending Payments</p><p className="text-white/50 text-xs font-normal">Approve bank transfers</p></div>
             </motion.div>
           </Link>
+          <Link href="/admin/receipts">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 rounded-2xl glass-card text-white font-semibold cursor-pointer border border-white/10 hover:border-emerald-500/40 transition-colors min-w-0">
+              <span className="text-2xl shrink-0">🧾</span>
+              <div className="min-w-0"><p className="font-semibold text-sm sm:text-base">Receipts</p><p className="text-white/50 text-xs font-normal">View, print, and resend PDFs</p></div>
+            </motion.div>
+          </Link>
         </div>
       </motion.div>
     </div>

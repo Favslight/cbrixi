@@ -15,6 +15,7 @@ const navItems = [
   { label: 'Orders', href: '/admin/orders', icon: OrdersIcon },
   { label: 'Users', href: '/admin/users', icon: UsersIcon },
   { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
+  { label: 'Receipts', href: '/admin/receipts', icon: ReceiptsIcon },
   { label: 'Support', href: '/admin/support', icon: SupportIcon },
   { label: 'Referrals', href: '/admin/referrals', icon: ReferralsIcon },
   { label: 'Notifications', href: '/admin/notifications', icon: BellIcon },
@@ -175,6 +176,13 @@ function PaymentsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+    </svg>
+  );
+}
+function ReceiptsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
     </svg>
   );
 }

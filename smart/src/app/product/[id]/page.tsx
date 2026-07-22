@@ -583,7 +583,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   </svg>
                   <div>
                     <p className="font-medium text-white mb-1">Free Delivery</p>
-                    <p className="text-sm text-white/50">Estimated delivery: 3-5 business days</p>
+                    <p className="text-sm text-white/50">Estimated delivery: 14-30 business days</p>
                   </div>
                 </div>
               </div>

@@ -43,6 +43,7 @@ const mapProducts = (list: Product[]): Product[] =>
     variant_price_min: p.variant_price_min,
     variant_price_max: p.variant_price_max,
     is_active: p.is_active !== false,
+    in_stock: p.in_stock !== false,
   }));
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -170,7 +171,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   const handleAddToCart = async () => {
     if (!product || typeof window === 'undefined' || addingToCart) return;
-    if (product.is_active === false) {
+    if (product.in_stock === false) {
       showCartNotice({ type: 'error', message: 'This product is currently out of stock.' });
       return;
     }
@@ -206,7 +207,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   };
 
   const selectedVariant = product?.variants?.find((variant) => variant.id === selectedVariantId) ?? product?.variants?.[0];
-  const isOutOfStock = product?.is_active === false;
+  const isOutOfStock = product?.in_stock === false;
   const displayPrice = selectedVariant?.effective_price ?? product?.effective_price ?? product?.discounted_price ?? product?.price;
   const originalPrice = selectedVariant?.price ?? product?.price;
   const displayDiscountPercentage = selectedVariant?.discount_percentage ?? product?.discount_percentage;

@@ -37,6 +37,16 @@ function ProductPrice({ product, variant = 'card' }: { product: Product; variant
   );
 }
 
+const normalizeSearch = (value: string | number | boolean | null | undefined) =>
+  String(value ?? '').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+
+const matchesSearch = (query: string, values: Array<string | number | boolean | null | undefined>) => {
+  const terms = normalizeSearch(query).split(' ').filter(Boolean);
+  if (terms.length === 0) return true;
+  const haystack = normalizeSearch(values.join(' '));
+  return terms.every((term) => haystack.includes(term));
+};
+
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
@@ -74,6 +84,7 @@ export default function Marketplace() {
       variant_price_max: p.variant_price_max,
       display_order: p.display_order ?? null,
       is_active: p.is_active !== false,
+      in_stock: p.in_stock !== false,
       price: p.price ?? 0,
       category: p.category || 'Uncategorized',
       description: p.description ?? '',
@@ -231,9 +242,22 @@ export default function Marketplace() {
   const categories = useMemo(() => ['All', ...allCategories], [allCategories]);
 
   const filteredProducts = useMemo(() => {
-    if (!search.trim()) return products;
-    const q = search.toLowerCase();
-    return products.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
+    return products.filter((product) =>
+      matchesSearch(search, [
+        product.name,
+        product.description,
+        product.category,
+        product.price,
+        product.effective_price,
+        product.discount_percentage,
+        ...(product.variants ?? []).flatMap((variant) => [
+          variant.name,
+          variant.price,
+          variant.effective_price,
+          ...Object.entries(variant.specs ?? {}).flatMap(([key, value]) => [key, value]),
+        ]),
+      ])
+    );
   }, [products, search]);
 
   const showCartNotice = (notice: { type: 'success' | 'error'; message: string }) => {
@@ -243,7 +267,7 @@ export default function Marketplace() {
 
   const handleAddToCart = async (product: Product) => {
     if (typeof window === 'undefined' || addingProductId) return;
-    if (product.is_active === false) {
+    if (product.in_stock === false) {
       showCartNotice({ type: 'error', message: 'This product is currently out of stock.' });
       return;
     }
@@ -645,10 +669,10 @@ export default function Marketplace() {
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={() => handleAddToCart(selectedProduct)}
-                        disabled={addingProductId === selectedProduct.id || selectedProduct.is_active === false}
+                        disabled={addingProductId === selectedProduct.id || selectedProduct.in_stock === false}
                         className="px-6 h-12 sm:h-11 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                       >
-                        {selectedProduct.is_active === false ? (
+                        {selectedProduct.in_stock === false ? (
                           'Out of Stock'
                         ) : addingProductId === selectedProduct.id ? (
                           <>

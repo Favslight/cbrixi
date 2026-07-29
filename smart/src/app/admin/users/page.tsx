@@ -91,6 +91,16 @@ const fmtDate = (d?: string | null) =>
 
 const paidValue = (order: Order) => Number(order.paid_amount ?? order.deposit_amount ?? 0);
 
+const normalizeSearch = (value: string | number | boolean | null | undefined) =>
+  String(value ?? '').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+
+const matchesSearch = (query: string, values: Array<string | number | boolean | null | undefined>) => {
+  const terms = normalizeSearch(query).split(' ').filter(Boolean);
+  if (terms.length === 0) return true;
+  const haystack = normalizeSearch(values.join(' '));
+  return terms.every((term) => haystack.includes(term));
+};
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,16 +132,30 @@ export default function AdminUsersPage() {
   }, [fetchUsers]);
 
   const filtered = users.filter((user) => {
-    const needle = search.toLowerCase();
     const searchable = [
+      user.id,
       user.email,
       displayName(user),
       user.username,
+      user.firstname,
+      user.lastname,
+      user.first_name,
+      user.last_name,
+      user.external_user_id,
+      user.status,
       user.cbrilliance_email,
-      ...user.orders.flatMap((order) => [orderSummary(order), productsText(order), variantsText(order), order.id]),
+      ...user.orders.flatMap((order) => [
+        orderSummary(order),
+        productsText(order),
+        variantsText(order),
+        order.id,
+        order.payment_mode,
+        order.status,
+        order.total_amount,
+      ]),
     ];
 
-    return searchable.some((value) => String(value ?? '').toLowerCase().includes(needle));
+    return matchesSearch(search, searchable);
   });
 
   const totalRevenue = users.reduce((acc, user) => acc + user.orders.reduce((orderAcc, order) => orderAcc + paidValue(order), 0), 0);

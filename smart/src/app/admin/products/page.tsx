@@ -33,16 +33,29 @@ interface Product {
     price: string | number;
     effective_price?: string | number;
     is_active?: boolean;
+    in_stock?: boolean;
   }>;
   is_active?: boolean;
+  in_stock?: boolean;
   status?: 'active' | 'inactive';
 }
+
+const normalizeSearch = (value: string | number | boolean | null | undefined) =>
+  String(value ?? '').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+
+const matchesSearch = (query: string, values: Array<string | number | boolean | null | undefined>) => {
+  const terms = normalizeSearch(query).split(' ').filter(Boolean);
+  if (terms.length === 0) return true;
+  const haystack = normalizeSearch(values.join(' '));
+  return terms.every((term) => haystack.includes(term));
+};
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [search, setSearch] = useState('');
   const [orderSaving, setOrderSaving] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [stockSavingId, setStockSavingId] = useState<string | null>(null);
@@ -166,21 +179,25 @@ export default function AdminProductsPage() {
     }
   };
 
-  const handleOutOfStock = async (product: Product) => {
-    if (!confirm(`Mark "${product.name}" as out of stock? It will be removed from public listings.`)) return;
+  const isInStock = (product: Product) => product.in_stock !== false;
+
+  const handleStockToggle = async (product: Product) => {
+    const nextInStock = !isInStock(product);
+    const actionLabel = nextInStock ? 'put back in stock' : 'mark as out of stock';
+    if (!confirm(`Are you sure you want to ${actionLabel} "${product.name}"?`)) return;
 
     setStockSavingId(product.id);
     setError('');
     setSuccess('');
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch(`${API_URL}/admin/products/${product.id}/out-of-stock`, {
+      const res = await fetch(`${API_URL}/admin/products/${product.id}/${nextInStock ? 'in-stock' : 'out-of-stock'}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) {
-        throw new Error(data.message || 'Failed to mark product out of stock.');
+        throw new Error(data.message || `Failed to ${actionLabel}.`);
       }
       const updated = data.product as Product | undefined;
       setProducts((current) =>
@@ -189,18 +206,16 @@ export default function AdminProductsPage() {
             ? {
                 ...item,
                 ...(updated ?? {}),
-                is_active: false,
-                status: 'inactive',
-                display_order: null,
-                variants: item.variants?.map((variant) => ({ ...variant, is_active: false })),
+                is_active: updated?.is_active ?? item.is_active ?? true,
+                in_stock: updated?.in_stock ?? nextInStock,
               }
             : item
         )
       );
-      setSuccess(`${product.name} marked as out of stock.`);
+      setSuccess(`${product.name} is now ${nextInStock ? 'in stock' : 'out of stock'}.`);
       await fetchProducts();
     } catch (stockError) {
-      setError(stockError instanceof Error ? stockError.message : 'Failed to mark product out of stock.');
+      setError(stockError instanceof Error ? stockError.message : `Failed to ${actionLabel}.`);
     } finally {
       setStockSavingId(null);
     }
@@ -215,6 +230,8 @@ export default function AdminProductsPage() {
     return product.is_active === false ? 'inactive' : 'active';
   };
 
+  const getStockStatus = (product: Product) => (isInStock(product) ? 'in stock' : 'out of stock');
+
   const getActiveVariantCount = (product: Product) =>
     (Array.isArray(product.variants) ? product.variants : []).filter((variant) => variant.is_active !== false).length;
 
@@ -223,6 +240,29 @@ export default function AdminProductsPage() {
     const max = product.variant_price_max ?? product.price;
     return String(min) !== String(max) ? `${formatMoney(min)} - ${formatMoney(max)}` : formatMoney(getSellingPrice(product));
   };
+
+  const filteredProducts = products.filter((product) =>
+    matchesSearch(search, [
+      product.id,
+      product.name,
+      product.description,
+      product.category,
+      product.price,
+      product.effective_price,
+      product.discount_percentage,
+      product.display_order,
+      getStatus(product),
+      getStockStatus(product),
+      getPriceLabel(product),
+      ...(product.variants ?? []).flatMap((variant) => [
+        variant.id,
+        variant.name,
+        variant.price,
+        variant.effective_price,
+        ...Object.entries(variant.specs ?? {}).flatMap(([key, value]) => [key, value]),
+      ]),
+    ])
+  );
 
   const handleDisplayOrderUpdate = async (id: string, rawValue: string) => {
     const trimmed = rawValue.trim();
@@ -402,7 +442,23 @@ export default function AdminProductsPage() {
         </div>
 
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-4">Products ({products.length})</h2>
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <h2 className="text-xl font-semibold">
+              Products ({filteredProducts.length}
+              {filteredProducts.length === products.length ? '' : ` of ${products.length}`})
+            </h2>
+            <label className="relative w-full lg:max-w-md">
+              <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search products, variants, prices, IDs..."
+                className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-4 text-sm text-white placeholder-white/30 outline-none transition-all focus:ring-2 focus:ring-blue-500/40"
+              />
+            </label>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -417,8 +473,9 @@ export default function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => {
+                {filteredProducts.map((product) => {
                   const status = getStatus(product);
+                  const stockStatus = getStockStatus(product);
                   const imageCount = product.image_urls?.length || (product.image_url ? 1 : 0);
                   const variantCount = getActiveVariantCount(product);
 
@@ -483,11 +540,13 @@ export default function AdminProductsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs ${
-                          status === 'active'
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-red-500/20 text-red-400'
+                          status !== 'active'
+                            ? 'bg-red-500/20 text-red-400'
+                            : isInStock(product)
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-yellow-500/15 text-yellow-300'
                         }`}>
-                          {status === 'active' ? 'active' : 'out of stock'}
+                          {status === 'active' ? stockStatus : 'inactive'}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -504,15 +563,17 @@ export default function AdminProductsPage() {
                           >
                             Delete
                           </button>
-                          {status === 'active' && (
-                            <button
-                              onClick={() => handleOutOfStock(product)}
-                              disabled={stockSavingId === product.id}
-                              className="px-3 py-1 bg-yellow-500/15 text-yellow-300 rounded-lg hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
-                            >
-                              {stockSavingId === product.id ? 'Saving...' : 'Out of stock'}
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleStockToggle(product)}
+                            disabled={stockSavingId === product.id}
+                            className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 ${
+                              isInStock(product)
+                                ? 'bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25'
+                                : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                            }`}
+                          >
+                            {stockSavingId === product.id ? 'Saving...' : isInStock(product) ? 'Out of stock' : 'In stock'}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -521,11 +582,15 @@ export default function AdminProductsPage() {
               </tbody>
             </table>
 
-            {products.length === 0 && (
+            {products.length === 0 ? (
               <div className="text-center py-8 text-white/50">
                 No products found. Add your first product above.
               </div>
-            )}
+            ) : filteredProducts.length === 0 ? (
+              <div className="text-center py-8 text-white/50">
+                No products match your search.
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

@@ -166,7 +166,11 @@ export default function CheckoutPage() {
                 });
                 router.push(`/payment/confirm?${confirmQuery.toString()}`);
             } else {
-                setError(data.message || 'Checkout failed. Please try again.');
+                const message = data.message || 'Checkout failed. Please try again.';
+                setError(message);
+                if (/no longer available/i.test(message)) {
+                    await fetchCart();
+                }
             }
         } catch { setError('Connection error during checkout. Please try again.'); }
         setSubmitting(false);

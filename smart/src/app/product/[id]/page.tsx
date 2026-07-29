@@ -12,19 +12,19 @@ import { formatMoney, getSellingPrice, hasActiveDiscount, toNumber } from '@/lib
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
-const getActiveVariants = (p: any) =>
-  (Array.isArray(p.variants) ? p.variants : []).filter((variant: any) => variant && variant.is_active !== false);
+const getActiveVariants = (p: Partial<Product>) =>
+  (Array.isArray(p.variants) ? p.variants : []).filter((variant) => variant && variant.is_active !== false);
 
-const getDefaultVariantId = (p: any) => p.default_variant_id ?? getActiveVariants(p)[0]?.id ?? null;
+const getDefaultVariantId = (p: Partial<Product>) => p.default_variant_id ?? getActiveVariants(p)[0]?.id ?? null;
 
-const getGalleryImages = (p: any) => {
+const getGalleryImages = (p: Partial<Product>) => {
   const fallback = p.image_url || p.image || '/images/smartwatch.png';
   const images = Array.isArray(p.image_urls) && p.image_urls.length ? p.image_urls : [fallback];
   return images.filter(Boolean).slice(0, 7);
 };
 
-const mapProducts = (list: any[]): Product[] =>
-  (list || []).map((p: any) => ({
+const mapProducts = (list: Product[]): Product[] =>
+  (list || []).map((p) => ({
     ...p,
     image: p.image_url || p.image || getGalleryImages(p)[0] || '/images/smartwatch.png',
     image_urls: getGalleryImages(p),
@@ -42,6 +42,7 @@ const mapProducts = (list: any[]): Product[] =>
     default_variant_id: getDefaultVariantId(p),
     variant_price_min: p.variant_price_min,
     variant_price_max: p.variant_price_max,
+    is_active: p.is_active !== false,
   }));
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -140,7 +141,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
     const loadProduct = async () => {
       setLoading(true);
-      const fetchedProduct = await fetchProduct(id);
+      await fetchProduct(id);
       await fetchAllProducts();
       setLoading(false);
       
@@ -169,6 +170,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   const handleAddToCart = async () => {
     if (!product || typeof window === 'undefined' || addingToCart) return;
+    if (product.is_active === false) {
+      showCartNotice({ type: 'error', message: 'This product is currently out of stock.' });
+      return;
+    }
 
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -201,6 +206,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   };
 
   const selectedVariant = product?.variants?.find((variant) => variant.id === selectedVariantId) ?? product?.variants?.[0];
+  const isOutOfStock = product?.is_active === false;
   const displayPrice = selectedVariant?.effective_price ?? product?.effective_price ?? product?.discounted_price ?? product?.price;
   const originalPrice = selectedVariant?.price ?? product?.price;
   const displayDiscountPercentage = selectedVariant?.discount_percentage ?? product?.discount_percentage;
@@ -499,6 +505,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             <div>
               <p className="text-sm font-semibold uppercase text-blue-400 mb-2">{product.category}</p>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">{product.name}</h1>
+              {isOutOfStock && (
+                <div className="mb-4 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300">
+                  This product is currently out of stock.
+                </div>
+              )}
               
               {/* Price */}
               <div className="flex items-baseline gap-3 mb-6">
@@ -558,10 +569,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               <div>
                 <button
                   onClick={handleAddToCart}
-                  disabled={addingToCart}
+                  disabled={addingToCart || isOutOfStock}
                   className="w-full px-6 py-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {addingToCart ? (
+                  {isOutOfStock ? (
+                    'Out of Stock'
+                  ) : addingToCart ? (
                     <>
                       <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

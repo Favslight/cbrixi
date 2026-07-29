@@ -43,6 +43,7 @@ export interface Product extends ProductDiscountFields {
   variant_price_min?: string | number;
   variant_price_max?: string | number;
   variants?: ProductVariant[];
+  is_active?: boolean;
 }
 
 /** Mutable list used only by local Next.js stub API routes. Starts empty — no demo catalog. */

@@ -58,10 +58,11 @@ export default function Marketplace() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 
-  const getActiveVariants = (p: any) => (Array.isArray(p.variants) ? p.variants : []).filter((variant: any) => variant && variant.is_active !== false);
+  const getActiveVariants = (p: Partial<Product>) =>
+    (Array.isArray(p.variants) ? p.variants : []).filter((variant) => variant && variant.is_active !== false);
 
-  const mapProducts = (list: any[]): Product[] =>
-    (list || []).map((p: any) => ({
+  const mapProducts = (list: Product[]): Product[] =>
+    (list || []).map((p) => ({
       ...p,
       image: p.image_url || p.image || '/images/smartwatch.png',
       image_urls: (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url || p.image || '/images/smartwatch.png']).slice(0, 7),
@@ -72,6 +73,7 @@ export default function Marketplace() {
       variant_price_min: p.variant_price_min,
       variant_price_max: p.variant_price_max,
       display_order: p.display_order ?? null,
+      is_active: p.is_active !== false,
       price: p.price ?? 0,
       category: p.category || 'Uncategorized',
       description: p.description ?? '',
@@ -241,6 +243,10 @@ export default function Marketplace() {
 
   const handleAddToCart = async (product: Product) => {
     if (typeof window === 'undefined' || addingProductId) return;
+    if (product.is_active === false) {
+      showCartNotice({ type: 'error', message: 'This product is currently out of stock.' });
+      return;
+    }
 
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -639,10 +645,12 @@ export default function Marketplace() {
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={() => handleAddToCart(selectedProduct)}
-                        disabled={addingProductId === selectedProduct.id}
+                        disabled={addingProductId === selectedProduct.id || selectedProduct.is_active === false}
                         className="px-6 h-12 sm:h-11 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                       >
-                        {addingProductId === selectedProduct.id ? (
+                        {selectedProduct.is_active === false ? (
+                          'Out of Stock'
+                        ) : addingProductId === selectedProduct.id ? (
                           <>
                             <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

@@ -42,7 +42,13 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [orderSaving, setOrderSaving] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [stockSavingId, setStockSavingId] = useState<string | null>(null);
+  const [bulkDeposit, setBulkDeposit] = useState('');
+  const [bulkDiscountEnabled, setBulkDiscountEnabled] = useState<'unchanged' | 'off' | 'on'>('unchanged');
+  const [bulkDiscountPercentage, setBulkDiscountPercentage] = useState('');
   const [draggingProductId, setDraggingProductId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -94,6 +100,109 @@ export default function AdminProductsPage() {
       }
     } catch {
       setError('Connection error');
+    }
+  };
+
+  const handleBulkPurchaseSettings = async () => {
+    const payload: {
+      minimum_deposit_percentage?: number;
+      discount_enabled?: boolean;
+      discount_percentage?: number;
+    } = {};
+    const trimmedDeposit = bulkDeposit.trim();
+    if (trimmedDeposit) {
+      const deposit = Number(trimmedDeposit);
+      if (!Number.isInteger(deposit) || deposit < 0 || deposit > 100) {
+        setError('Deposit percentage must be an integer between 0 and 100.');
+        setSuccess('');
+        return;
+      }
+      payload.minimum_deposit_percentage = deposit;
+    }
+
+    if (bulkDiscountEnabled !== 'unchanged') {
+      payload.discount_enabled = bulkDiscountEnabled === 'on';
+      if (payload.discount_enabled) {
+        const discount = Number(bulkDiscountPercentage);
+        if (!Number.isFinite(discount) || discount <= 0 || discount > 100) {
+          setError('Discount percentage must be greater than 0 and less than or equal to 100 when discount is active.');
+          setSuccess('');
+          return;
+        }
+        payload.discount_percentage = discount;
+      }
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setError('Choose at least one purchase setting to update.');
+      setSuccess('');
+      return;
+    }
+
+    setBulkSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/products/purchase-settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to update purchase settings.');
+      }
+      if (Array.isArray(data.products)) setProducts(data.products);
+      else await fetchProducts();
+      setSuccess(`Updated ${data.updated_count ?? data.products?.length ?? 0} product purchase settings.`);
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : 'Failed to update purchase settings.');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const handleOutOfStock = async (product: Product) => {
+    if (!confirm(`Mark "${product.name}" as out of stock? It will be removed from public listings.`)) return;
+
+    setStockSavingId(product.id);
+    setError('');
+    setSuccess('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_URL}/admin/products/${product.id}/out-of-stock`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to mark product out of stock.');
+      }
+      const updated = data.product as Product | undefined;
+      setProducts((current) =>
+        current.map((item) =>
+          item.id === product.id
+            ? {
+                ...item,
+                ...(updated ?? {}),
+                is_active: false,
+                status: 'inactive',
+                display_order: null,
+                variants: item.variants?.map((variant) => ({ ...variant, is_active: false })),
+              }
+            : item
+        )
+      );
+      setSuccess(`${product.name} marked as out of stock.`);
+      await fetchProducts();
+    } catch (stockError) {
+      setError(stockError instanceof Error ? stockError.message : 'Failed to mark product out of stock.');
+    } finally {
+      setStockSavingId(null);
     }
   };
 
@@ -222,11 +331,75 @@ export default function AdminProductsPage() {
           </Link>
         </div>
 
-        {error && (
-          <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400">
-            {error}
+        {(error || success) && (
+          <div
+            className={`mb-4 rounded-lg border p-4 ${
+              error
+                ? 'border-red-500/50 bg-red-500/20 text-red-400'
+                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+            }`}
+          >
+            {error || success}
           </div>
         )}
+
+        <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.04] p-5">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Bulk Purchase Settings</h2>
+            <p className="mt-1 text-sm text-white/45">Update deposit requirements or discount state for all uploaded products.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[180px_190px_180px_auto] md:items-end">
+            <label>
+              <span className="mb-1.5 block text-xs text-white/45">Deposit percentage</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={bulkDeposit}
+                onChange={(event) => setBulkDeposit(event.target.value)}
+                placeholder="e.g. 30"
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400"
+              />
+            </label>
+            <label>
+              <span className="mb-1.5 block text-xs text-white/45">Discounts</span>
+              <select
+                value={bulkDiscountEnabled}
+                onChange={(event) => setBulkDiscountEnabled(event.target.value as typeof bulkDiscountEnabled)}
+                className="w-full rounded-xl border border-white/10 bg-[#111116] px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400"
+              >
+                <option value="unchanged">Leave unchanged</option>
+                <option value="off">Turn off globally</option>
+                <option value="on">Turn on globally</option>
+              </select>
+            </label>
+            {bulkDiscountEnabled === 'on' ? (
+              <label>
+                <span className="mb-1.5 block text-xs text-white/45">Discount percent</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={bulkDiscountPercentage}
+                  onChange={(event) => setBulkDiscountPercentage(event.target.value)}
+                  placeholder="e.g. 10"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-400"
+                />
+              </label>
+            ) : (
+              <div className="hidden md:block" />
+            )}
+            <button
+              type="button"
+              onClick={handleBulkPurchaseSettings}
+              disabled={bulkSaving}
+              className="rounded-xl border border-blue-500/30 bg-blue-500/15 px-4 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-500/25 disabled:opacity-50"
+            >
+              {bulkSaving ? 'Updating...' : 'Apply to all products'}
+            </button>
+          </div>
+        </div>
 
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">Products ({products.length})</h2>
@@ -314,7 +487,7 @@ export default function AdminProductsPage() {
                             ? 'bg-green-500/20 text-green-400'
                             : 'bg-red-500/20 text-red-400'
                         }`}>
-                          {status}
+                          {status === 'active' ? 'active' : 'out of stock'}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -331,6 +504,15 @@ export default function AdminProductsPage() {
                           >
                             Delete
                           </button>
+                          {status === 'active' && (
+                            <button
+                              onClick={() => handleOutOfStock(product)}
+                              disabled={stockSavingId === product.id}
+                              className="px-3 py-1 bg-yellow-500/15 text-yellow-300 rounded-lg hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
+                            >
+                              {stockSavingId === product.id ? 'Saving...' : 'Out of stock'}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

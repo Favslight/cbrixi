@@ -26,6 +26,11 @@ export interface ReceiptItem {
   variant_name?: string | null;
 }
 
+export interface ReceiptCustomDetail {
+  key: string;
+  value: string;
+}
+
 export interface Receipt {
   id?: string;
   receipt_number: string;
@@ -51,6 +56,7 @@ export interface Receipt {
   created_at?: string | null;
   payment_date?: string | null;
   items?: ReceiptItem[];
+  custom_details?: ReceiptCustomDetail[];
   company?: ReceiptCompany | null;
   payment?: {
     id?: string;

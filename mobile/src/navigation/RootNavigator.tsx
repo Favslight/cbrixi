@@ -1,16 +1,15 @@
-import { ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { useBootstrapState } from '../hooks/useBootstrapState';
 import type { RootStackParamList } from '../types/navigation';
-import { AppBackground } from '../components/AppBackground';
 import { colors } from '../constants/theme';
 import { BrandSplashScreen } from '../screens/BrandSplashScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignupScreen';
 import { HomeScreen } from '../screens/HomeScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { FavoritesScreen } from '../screens/FavoritesScreen';
 import { CartScreen } from '../screens/CartScreen';
 import { ProductDetailsScreen } from '../screens/ProductDetailsScreen';
@@ -19,27 +18,21 @@ import { OrdersScreen } from '../screens/OrdersScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+/**
+ * Navigation tree (always starts at Splash):
+ *
+ * BrandSplash
+ *   ├─ (!onboarded) → Onboarding → Login → Home (Marketplace)
+ *   ├─ (onboarded && !auth) → Login → Home
+ *   └─ (auth) → Home
+ *
+ * Side stack from Home: Profile, Notifications, Favorites, Cart, Orders, ProductDetails, Payment, Signup
+ */
 export function RootNavigator() {
-  const { loading, onboardingSeen, hasToken } = useBootstrapState();
-
-  if (loading) {
-    return (
-      <AppBackground>
-        <ActivityIndicator style={styles.loader} color={colors.primary} size="large" />
-      </AppBackground>
-    );
-  }
-
-  const initialRouteName: keyof RootStackParamList = hasToken
-    ? 'Home'
-    : onboardingSeen
-      ? 'Login'
-      : 'BrandSplash';
-
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={initialRouteName}
+        initialRouteName="BrandSplash"
         screenOptions={{
           headerShown: false,
           animation: 'fade',
@@ -51,6 +44,8 @@ export function RootNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="Favorites" component={FavoritesScreen} />
         <Stack.Screen name="Orders" component={OrdersScreen} />
         <Stack.Screen name="Cart" component={CartScreen} />
@@ -68,9 +63,3 @@ export function RootNavigator() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  loader: {
-    flex: 1,
-  },
-});

@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { API_BASE_URL, apiRequest, type ApiError } from './api';
 
 export type OrderStatus = 'AWAITING_APPROVAL' | 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'REJECTED';
 
@@ -118,4 +118,79 @@ export async function initiateManualTransfer(
       installment_id: input.installmentId ?? null,
     },
   });
+}
+
+/** Soft wrapper matching web `initiateManualInvoice` — returns success/error for retry UI. */
+export async function initiateManualInvoice(
+  token: string,
+  input: { orderId: string; installmentId?: string | null },
+): Promise<{ success: boolean; invoice?: ManualTransferResponse; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/payment/manual/initiate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        order_id: input.orderId,
+        installment_id: input.installmentId ?? null,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as ManualTransferResponse & { message?: string };
+    if (response.ok && data.reference) {
+      return {
+        success: true,
+        invoice: {
+          reference: data.reference,
+          bank_name: data.bank_name,
+          account_name: data.account_name,
+          account_number: data.account_number,
+          amount: Number(data.amount),
+        },
+      };
+    }
+    return { success: false, error: data.message || 'Could not create payment invoice.' };
+  } catch (error) {
+    const message =
+      error && typeof error === 'object' && 'message' in error
+        ? String((error as ApiError).message)
+        : 'Could not create payment invoice.';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Confirm bank transfer for admin review.
+ * Failsafe (same as web): 404/405 or network errors still count as success so the
+ * user is not stuck after transferring when the confirm endpoint is missing/flaky.
+ */
+export async function confirmManualPayment(
+  token: string,
+  input: { reference: string; orderId: string; installmentId?: string | null },
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/payment/manual/confirm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        reference: input.reference,
+        order_id: input.orderId,
+        installment_id: input.installmentId ?? null,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as { success?: boolean; message?: string };
+    if (response.ok && data.success !== false) {
+      return { success: true };
+    }
+    if (response.status === 404 || response.status === 405) {
+      return { success: true };
+    }
+    return { success: false, error: data.message || 'Could not confirm payment.' };
+  } catch {
+    return { success: true };
+  }
 }

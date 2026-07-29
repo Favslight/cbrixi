@@ -13,6 +13,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { ScreenPreloader } from '../components/ScreenPreloader';
 import { colors } from '../constants/theme';
 import {
   fetchMyOrders,
@@ -149,6 +150,10 @@ export function OrdersScreen({ navigation }: Props) {
 
   const clearableOrders = visibleOrders.filter(isTerminalOrder).length;
 
+  if (loading && orders.length === 0) {
+    return <ScreenPreloader message="Loading orders..." />;
+  }
+
   return (
     <AppBackground>
       <SafeAreaView style={styles.safeArea}>
@@ -177,7 +182,6 @@ export function OrdersScreen({ navigation }: Props) {
                 <Text style={styles.subtitle}>Track approvals, balances, installments, and payment history.</Text>
 
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
-                {loading ? <Text style={styles.loadingText}>Loading orders...</Text> : null}
 
                 <View style={styles.statsGrid}>
                   <StatCard label="Orders" value={visibleOrders.length} />

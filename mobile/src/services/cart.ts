@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { API_BASE_URL, apiRequest, type ApiError } from './api';
 
 export type CartItem = {
   id: string;
@@ -84,11 +84,52 @@ export async function deleteCartItem(token: string, itemId: string, productId?: 
   return Boolean(data.success ?? true);
 }
 
+export type CheckoutOrder = {
+  id?: string;
+  status?: string;
+  external_email?: string | null;
+  total_amount?: string | number;
+  deposit_amount?: string | number;
+  remaining_amount?: string | number;
+  remaining_balance?: string | number;
+};
+
+export type CheckoutPaymentSummary = {
+  total_amount?: string | number;
+  deposit_amount?: string | number;
+  remaining_amount?: string | number;
+};
+
+export type CheckoutResponse = {
+  success?: boolean;
+  /** Backend may return `{ order: Order }` or nested `{ order: { order: Order } }`. */
+  order?: CheckoutOrder | { order?: CheckoutOrder };
+  payment_summary?: CheckoutPaymentSummary;
+  message?: string;
+};
+
+/** Normalize checkout payload the same way web does: `data.order?.order ?? data.order`. */
+export function getCheckoutOrder(response: CheckoutResponse): CheckoutOrder | null {
+  const raw = response.order;
+  if (!raw || typeof raw !== 'object') return null;
+
+  if ('order' in raw && raw.order && typeof raw.order === 'object') {
+    return raw.order;
+  }
+
+  return raw as CheckoutOrder;
+}
+
+/**
+ * Place order via POST /order/checkout.
+ * Mirrors web checkout: parse JSON body and let the caller decide from `success`
+ * (do not hard-fail solely on HTTP status when a body is present).
+ */
 export async function checkoutCart(
   token: string,
   paymentMode: 'FULL' | 'INSTALLMENT',
   externalEmail?: string,
-): Promise<{ success?: boolean; order?: { order?: { id?: string } }; message?: string }> {
+): Promise<CheckoutResponse> {
   const body: { payment_mode: 'FULL' | 'INSTALLMENT'; externalEmail?: string } = {
     payment_mode: paymentMode,
   };
@@ -96,9 +137,40 @@ export async function checkoutCart(
     body.externalEmail = externalEmail;
   }
 
-  return apiRequest<{ success?: boolean; order?: { order?: { id?: string } }; message?: string }>('/order/checkout', {
-    method: 'POST',
-    token,
-    body,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/order/checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    let data: CheckoutResponse = {};
+    try {
+      data = (await response.json()) as CheckoutResponse;
+    } catch {
+      if (!response.ok) {
+        throw { message: 'Checkout failed. Please try again.', status: response.status } satisfies ApiError;
+      }
+      return { success: false, message: 'Checkout failed. Please try again.' };
+    }
+
+    return data;
+  } catch (error) {
+    if (error && typeof error === 'object' && 'message' in error) {
+      throw error as ApiError;
+    }
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw { message: 'Request timed out. Please try again.' } satisfies ApiError;
+    }
+    throw { message: 'Connection error during checkout. Please try again.' } satisfies ApiError;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

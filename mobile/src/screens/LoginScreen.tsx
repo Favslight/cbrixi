@@ -16,7 +16,7 @@ import { AppBackground } from '../components/AppBackground';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { TextField } from '../components/TextField';
 import { colors } from '../constants/theme';
-import { loginWithRoleFallback } from '../services/auth';
+import { fetchUserProfile, loginWithRoleFallback } from '../services/auth';
 import { storage } from '../services/storage';
 import type { RootStackParamList } from '../types/navigation';
 import { toErrorMessage } from '../utils/errors';
@@ -59,18 +59,26 @@ export function LoginScreen({ navigation }: Props) {
         password: formData.password,
       });
 
+      const storageEntries: Array<[string, string]> = [[storage.keys.onboardingSeen, 'true']];
+
       if (result.role === 'user') {
-        await storage.setString(storage.keys.userToken, result.token);
-        if (result.profile) {
-          await storage.setString(storage.keys.userData, JSON.stringify(result.profile));
-        }
+        storageEntries.push([storage.keys.userToken, result.token]);
       } else {
-        await storage.setString(storage.keys.adminToken, result.token);
-        await storage.setString(storage.keys.adminName, result.adminName ?? 'Admin');
+        storageEntries.push(
+          [storage.keys.adminToken, result.token],
+          [storage.keys.adminName, result.adminName ?? 'Admin'],
+        );
       }
 
-      await storage.setString(storage.keys.onboardingSeen, 'true');
+      await storage.multiSet(storageEntries);
       navigation.replace('Home');
+
+      // Profile is not on the login critical path — hydrate in the background.
+      if (result.role === 'user') {
+        fetchUserProfile(result.token)
+          .then((profile) => storage.setString(storage.keys.userData, JSON.stringify(profile)))
+          .catch(() => undefined);
+      }
     } catch (loginError) {
       setError(toErrorMessage(loginError, 'Connection error. Please try again.'));
     } finally {

@@ -68,6 +68,9 @@ export function buildClientReceiptHtml(receipt: Receipt): string {
     receipt.payment_reference || receipt.reference || receipt.payment?.reference || null;
   const paymentMethod = receipt.payment_method || receipt.payment?.payment_method || null;
   const invoiceNumber = receipt.invoice_number?.trim() || null;
+  const customDetails = (receipt.custom_details ?? []).filter(
+    (detail) => detail.key.trim() || detail.value.trim()
+  );
 
   const itemRows =
     items.length === 0
@@ -98,6 +101,20 @@ export function buildClientReceiptHtml(receipt: Receipt): string {
 
   const invoiceDlRow = invoiceNumber
     ? `<div class="dl-row"><dt>Invoice</dt><dd class="mono">${escapeHtml(invoiceNumber)}</dd></div>`
+    : '';
+
+  const customDetailsBlock = customDetails.length
+    ? `<h2 class="section-title detail-heading">Details</h2>
+      <div class="details">
+        ${customDetails
+          .map(
+            (detail) => `<div class="detail-row">
+              <dt>${escapeHtml(detail.key.trim() || 'Detail')}</dt>
+              <dd>${escapeHtml(detail.value.trim() || '—')}</dd>
+            </div>`
+          )
+          .join('')}
+      </div>`
     : '';
 
   return `<!DOCTYPE html>
@@ -249,6 +266,23 @@ export function buildClientReceiptHtml(receipt: Receipt): string {
   .item-name { font-weight: 600; color: #0f172a; }
   .variant { margin-top: 2px; font-size: 12px; color: #94a3b8; }
   .strong { font-weight: 700; }
+  .detail-heading { margin-top: 22px; }
+  .details {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .detail-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 14px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 13px;
+  }
+  .detail-row:last-child { border-bottom: 0; }
+  .detail-row dt { color: #64748b; font-weight: 600; word-break: break-word; }
+  .detail-row dd { margin: 0; color: #334155; white-space: pre-line; word-break: break-word; }
   @media print {
     body { background: #fff; }
     .sheet {
@@ -266,7 +300,7 @@ export function buildClientReceiptHtml(receipt: Receipt): string {
     }
   }
   @media (max-width: 640px) {
-    .grid, .metrics { grid-template-columns: 1fr; }
+    .grid, .metrics, .detail-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -333,6 +367,7 @@ export function buildClientReceiptHtml(receipt: Receipt): string {
         </thead>
         <tbody>${itemRows}</tbody>
       </table>
+      ${customDetailsBlock}
     </div>
   </article>
 </body>

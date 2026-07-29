@@ -11,12 +11,15 @@ import {
   View,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { ScreenPreloader } from '../components/ScreenPreloader';
 import { colors } from '../constants/theme';
 import { getFavoriteProducts, toggleFavoriteProduct } from '../services/favorites';
+import { fetchUnreadNotificationCount } from '../services/notifications';
 import { fetchProducts } from '../services/products';
 import { storage } from '../services/storage';
 import type { RootStackParamList } from '../types/navigation';
@@ -45,6 +48,8 @@ export function HomeScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [firstName, setFirstName] = useState('User');
+  const [avatarInitial, setAvatarInitial] = useState('U');
+  const [unreadCount, setUnreadCount] = useState(0);
   const [favoriteIds, setFavoriteIds] = useState<Record<string, boolean>>({});
 
   const loadProducts = useCallback(async (asRefresh = false) => {
@@ -65,15 +70,27 @@ export function HomeScreen({ navigation }: Props) {
       if (userData) {
         try {
           const parsed = JSON.parse(userData) as { firstname?: string; username?: string };
-          setFirstName(parsed.firstname?.trim() || parsed.username?.trim() || 'User');
+          const name = parsed.firstname?.trim() || parsed.username?.trim() || 'User';
+          setFirstName(name);
+          setAvatarInitial(name.charAt(0).toUpperCase());
         } catch {
           setFirstName('User');
+          setAvatarInitial('U');
         }
       }
 
       const token = userToken || adminToken || undefined;
       const list = await fetchProducts(token);
       setProducts(list);
+
+      if (userToken) {
+        try {
+          const count = await fetchUnreadNotificationCount(userToken);
+          setUnreadCount(count);
+        } catch {
+          setUnreadCount(0);
+        }
+      }
     } catch (fetchError) {
       setError(toErrorMessage(fetchError, 'Unable to load products right now.'));
       setProducts([]);
@@ -86,6 +103,42 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     loadProducts().catch(() => undefined);
   }, [loadProducts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      async function refreshHeaderMeta() {
+        const [userToken, userData] = await Promise.all([
+          storage.getString(storage.keys.userToken),
+          storage.getString(storage.keys.userData),
+        ]);
+
+        if (userData) {
+          try {
+            const parsed = JSON.parse(userData) as { firstname?: string; username?: string };
+            const name = parsed.firstname?.trim() || parsed.username?.trim() || 'User';
+            setFirstName(name);
+            setAvatarInitial(name.charAt(0).toUpperCase());
+          } catch {
+            // keep existing greeting
+          }
+        }
+
+        if (!userToken) {
+          setUnreadCount(0);
+          return;
+        }
+
+        try {
+          const count = await fetchUnreadNotificationCount(userToken);
+          setUnreadCount(count);
+        } catch {
+          setUnreadCount(0);
+        }
+      }
+
+      refreshHeaderMeta().catch(() => undefined);
+    }, []),
+  );
 
   useEffect(() => {
     async function loadFavorites() {
@@ -126,16 +179,6 @@ export function HomeScreen({ navigation }: Props) {
     });
   }, [products, activeChip, searchText]);
 
-  const logout = async () => {
-    await storage.multiRemove([
-      storage.keys.userToken,
-      storage.keys.adminToken,
-      storage.keys.userData,
-      storage.keys.adminName,
-    ]);
-    navigation.replace('Login');
-  };
-
   const onToggleFavorite = async (product: ProductItem) => {
     const result = await toggleFavoriteProduct(product);
     setFavoriteIds((current) => ({
@@ -144,13 +187,17 @@ export function HomeScreen({ navigation }: Props) {
     }));
   };
 
+  if (loading && products.length === 0) {
+    return <ScreenPreloader message="Loading marketplace..." />;
+  }
+
   return (
     <AppBackground>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           <FlatList
             data={filteredProducts}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => String(item.id || `product-${index}`)}
             numColumns={2}
             columnWrapperStyle={styles.columnWrap}
             contentContainerStyle={styles.listContent}
@@ -158,13 +205,25 @@ export function HomeScreen({ navigation }: Props) {
             ListHeaderComponent={
               <View style={styles.headerContent}>
                 <View style={styles.topRow}>
-                  <Text style={styles.greetingText}>Hi {firstName}</Text>
+                  <Pressable style={styles.profileEntry} onPress={() => navigation.navigate('Profile')}>
+                    <View style={styles.avatarButton}>
+                      <Text style={styles.avatarInitial}>{avatarInitial}</Text>
+                    </View>
+                    <Text style={styles.greetingText}>Hi {firstName}</Text>
+                  </Pressable>
                   <View style={styles.headerActions}>
-                    <Pressable style={styles.iconButton}>
+                    <Pressable
+                      style={styles.iconButton}
+                      onPress={() => navigation.navigate('Notifications')}
+                    >
                       <Ionicons name="notifications-outline" size={18} color={colors.textPrimary} />
-                    </Pressable>
-                    <Pressable style={styles.iconButton} onPress={logout}>
-                      <Ionicons name="log-out-outline" size={18} color={colors.textPrimary} />
+                      {unreadCount > 0 ? (
+                        <View style={styles.badge}>
+                          <Text style={styles.badgeText}>
+                            {unreadCount > 9 ? '9+' : String(unreadCount)}
+                          </Text>
+                        </View>
+                      ) : null}
                     </Pressable>
                   </View>
                 </View>
@@ -180,7 +239,12 @@ export function HomeScreen({ navigation }: Props) {
                   />
                 </View>
 
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  nestedScrollEnabled
+                  contentContainerStyle={styles.chipRow}
+                >
                   {categoryChips.map((chip) => {
                     const active = chip === activeChip;
                     return (
@@ -286,6 +350,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  profileEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  avatarButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1D4ED8',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.45)',
+  },
+  avatarInitial: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   greetingText: {
     color: colors.textSecondary,
     fontSize: 13,
@@ -304,6 +389,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(15,23,42,0.6)',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: colors.textPrimary,
+    fontSize: 9,
+    fontWeight: '700',
   },
   searchWrap: {
     height: 42,
@@ -326,6 +428,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingBottom: 12,
     gap: 8,
   },
@@ -338,6 +442,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(15,23,42,0.6)',
+    flexShrink: 0,
   },
   chipActive: {
     backgroundColor: '#1D4ED8',

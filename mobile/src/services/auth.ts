@@ -1,4 +1,4 @@
-import { API_BASE_URL, apiRequest } from './api';
+import { API_BASE_URL, apiRequest, type ApiError } from './api';
 
 export type LoginPayload = {
   email: string;
@@ -35,41 +35,53 @@ type LoginResult = {
   role: 'user' | 'admin';
   token: string;
   adminName?: string;
-  profile?: ProfileResponse;
 };
 
 async function postAuth(
   endpoint: '/user/login' | '/admin/login',
   payload: LoginPayload,
 ): Promise<{ ok: boolean; data: TokenResponse }> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  const data = (await response.json()) as TokenResponse;
-  return { ok: response.ok, data };
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const data = (await response.json()) as TokenResponse;
+    return { ok: response.ok, data };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return { ok: false, data: { message: 'Request timed out. Please try again.' } };
+    }
+    const apiError = error as ApiError;
+    return {
+      ok: false,
+      data: { message: apiError?.message || 'Connection error. Please try again.' },
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function loginWithRoleFallback(payload: LoginPayload): Promise<LoginResult> {
-  const userResult = await postAuth('/user/login', payload);
-  if (userResult.ok && userResult.data.token) {
-    let profile: ProfileResponse | undefined;
-    try {
-      profile = await fetchUserProfile(userResult.data.token);
-    } catch {
-      profile = undefined;
-    }
+  // Try both roles in parallel so admin (and failed) logins are not serial waterfalls.
+  const [userResult, adminResult] = await Promise.all([
+    postAuth('/user/login', payload),
+    postAuth('/admin/login', payload),
+  ]);
 
+  if (userResult.ok && userResult.data.token) {
     return {
       role: 'user',
       token: userResult.data.token,
-      profile,
     };
   }
 
-  const adminResult = await postAuth('/admin/login', payload);
   if (adminResult.ok && adminResult.data.token) {
     return {
       role: 'admin',
@@ -85,6 +97,13 @@ export async function loginWithRoleFallback(payload: LoginPayload): Promise<Logi
   );
 }
 
+export type UpdateProfilePayload = {
+  firstname: string;
+  lastname: string;
+  username: string;
+  email: string;
+};
+
 export async function fetchUserProfile(token: string): Promise<ProfileResponse> {
   const data = await apiRequest<ProfileResponse | { user?: ProfileResponse }>('/user/profile', {
     token,
@@ -93,6 +112,32 @@ export async function fetchUserProfile(token: string): Promise<ProfileResponse> 
     return data.user;
   }
   return data as ProfileResponse;
+}
+
+export async function updateUserProfile(
+  token: string,
+  payload: UpdateProfilePayload,
+): Promise<ProfileResponse> {
+  const data = await apiRequest<ProfileResponse | { user?: ProfileResponse }>('/user/profile', {
+    method: 'PUT',
+    token,
+    body: payload,
+  });
+  if ('user' in data && data.user) {
+    return data.user;
+  }
+  return data as ProfileResponse;
+}
+
+export async function logoutUser(token: string): Promise<void> {
+  try {
+    await apiRequest('/user/logout', {
+      method: 'POST',
+      token,
+    });
+  } catch {
+    // Local logout still proceeds even if the API call fails.
+  }
 }
 
 export async function signupUser(payload: SignupPayload): Promise<{ message?: string }> {

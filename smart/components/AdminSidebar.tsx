@@ -16,6 +16,7 @@ const navItems = [
   { label: 'Users', href: '/admin/users', icon: UsersIcon },
   { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
   { label: 'Receipts', href: '/admin/receipts', icon: ReceiptsIcon },
+  { label: 'Receipt Creator', href: '/admin/receipt-creator', icon: ReceiptsIcon },
   { label: 'Support', href: '/admin/support', icon: SupportIcon },
   { label: 'Referrals', href: '/admin/referrals', icon: ReferralsIcon },
   { label: 'Notifications', href: '/admin/notifications', icon: BellIcon },

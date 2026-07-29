@@ -12,12 +12,14 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { ScreenPreloader } from '../components/ScreenPreloader';
 import { colors } from '../constants/theme';
 import {
+  confirmManualPayment,
   fetchMyOrders,
   getDepositScheduleItem,
   getPaymentSchedule,
-  initiateManualTransfer,
+  initiateManualInvoice,
   toNaira,
   type ManualTransferResponse,
   type OrderItem,
@@ -64,15 +66,49 @@ export function PaymentScreen({ navigation, route }: Props) {
 
   const [order, setOrder] = useState<UserOrder | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(true);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [bankDetails, setBankDetails] = useState<ManualTransferResponse | null>(null);
+  const [invoice, setInvoice] = useState<ManualTransferResponse | null>(null);
+  const [intentChecked, setIntentChecked] = useState(false);
+  const [confirmedIntent, setConfirmedIntent] = useState(false);
+  const [transferConfirmed, setTransferConfirmed] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const createInvoice = useCallback(
+    async (orderData: UserOrder) => {
+      const token = await storage.getString(storage.keys.userToken);
+      if (!token) return;
+
+      setLoadingInvoice(true);
+      setError('');
+      const result = await initiateManualInvoice(token, {
+        orderId: orderData.id,
+        installmentId: action === 'installment' ? installmentId : null,
+      });
+      setLoadingInvoice(false);
+
+      if (result.success && result.invoice) {
+        setInvoice(result.invoice);
+        setError('');
+      } else {
+        setInvoice(null);
+        setError(result.error || 'Could not generate payment invoice.');
+      }
+    },
+    [action, installmentId],
+  );
 
   const loadOrder = useCallback(async () => {
     const token = await storage.getString(storage.keys.userToken);
     if (!token) {
       navigation.replace('Login');
+      return;
+    }
+
+    if (!orderId) {
+      navigation.navigate('Orders');
       return;
     }
 
@@ -83,6 +119,8 @@ export function PaymentScreen({ navigation, route }: Props) {
       const found = orders.find((candidate) => candidate.id === orderId) ?? null;
       if (!found) {
         setError('Order not found.');
+        setOrder(null);
+        return;
       }
       setOrder(found);
     } catch {
@@ -96,6 +134,13 @@ export function PaymentScreen({ navigation, route }: Props) {
   useEffect(() => {
     loadOrder().catch(() => undefined);
   }, [loadOrder]);
+
+  useEffect(() => {
+    if (!confirmedIntent || !order || invoice || loadingInvoice || submitted || error) {
+      return;
+    }
+    createInvoice(order).catch(() => undefined);
+  }, [confirmedIntent, createInvoice, error, invoice, loadingInvoice, order, submitted]);
 
   const selectedInstallment = useMemo<PaymentScheduleItem | null>(() => {
     if (!order || !installmentId) return null;
@@ -113,12 +158,19 @@ export function PaymentScreen({ navigation, route }: Props) {
     }
 
     if (action === 'installment' && selectedInstallment) {
-      const summaryLabel = selectedInstallment.payment_label ?? fmtMonth(selectedInstallment.due_date, selectedInstallment.installment_number);
+      const summaryLabel =
+        selectedInstallment.payment_label ??
+        fmtMonth(selectedInstallment.due_date, selectedInstallment.installment_number);
       return {
         title: 'Month payment',
         label: summaryLabel,
-        amount: Number(selectedInstallment.remaining_amount ?? selectedInstallment.amount ?? order.next_payment_amount ?? 0),
-        helper: `This invoice is for ${summaryLabel}. It will wait for admin approval after you submit it.`,
+        amount: Number(
+          selectedInstallment.remaining_amount ??
+            selectedInstallment.amount ??
+            order.next_payment_amount ??
+            0,
+        ),
+        helper: `This invoice is for ${summaryLabel}. Submit for admin review only after you have completed the bank transfer.`,
       };
     }
 
@@ -127,7 +179,8 @@ export function PaymentScreen({ navigation, route }: Props) {
         title: 'Complete installment payment',
         label: routeLabel ?? 'Complete payment',
         amount: Number(order.remaining_balance ?? 0),
-        helper: 'This invoice covers the remaining balance. Admin approval will mark the remaining installments as settled.',
+        helper:
+          'This invoice covers the remaining balance. Submit for admin review only after you have transferred the funds.',
       };
     }
 
@@ -135,14 +188,24 @@ export function PaymentScreen({ navigation, route }: Props) {
 
     return {
       title: order.payment_mode === 'INSTALLMENT' ? 'Deposit payment' : 'Order payment',
-      label: routeLabel ?? depositItem?.payment_label ?? (order.payment_mode === 'INSTALLMENT' ? 'First deposit' : 'Full order'),
-      amount: Number(depositItem?.remaining_amount ?? depositItem?.amount ?? order.deposit_amount ?? order.total_amount ?? total ?? 0),
-      helper: 'This bank invoice will be submitted for admin approval.',
+      label:
+        routeLabel ??
+        depositItem?.payment_label ??
+        (order.payment_mode === 'INSTALLMENT' ? 'First deposit' : 'Full order'),
+      amount: Number(
+        depositItem?.remaining_amount ??
+          depositItem?.amount ??
+          order.deposit_amount ??
+          order.total_amount ??
+          total ??
+          0,
+      ),
+      helper: 'Submit for admin review only after you have completed the bank transfer.',
     };
   }, [action, order, routeLabel, selectedInstallment, total]);
 
-  const handleBankTransfer = async () => {
-    if (!order) return;
+  const handleSubmitPayment = async () => {
+    if (!order || !transferConfirmed || !invoice) return;
 
     const token = await storage.getString(storage.keys.userToken);
     if (!token) {
@@ -150,31 +213,27 @@ export function PaymentScreen({ navigation, route }: Props) {
       return;
     }
 
-    if (action === 'installment' && !installmentId) {
-      setError('Installment ID is missing for this payment.');
-      return;
-    }
-
     setProcessing(true);
     setError('');
     setNotice('');
-    try {
-      const data = await initiateManualTransfer(token, {
-        orderId: order.id,
-        installmentId: action === 'installment' ? installmentId : null,
-      });
-      setBankDetails(data);
-      setNotice('Invoice created. Use these details for transfer; the payment is now awaiting admin approval.');
-    } catch (transferError) {
-      const message =
-        transferError && typeof transferError === 'object' && 'message' in transferError
-          ? String((transferError as { message?: string }).message)
-          : 'Could not generate transfer instructions.';
-      setError(message);
-    } finally {
-      setProcessing(false);
+
+    const result = await confirmManualPayment(token, {
+      reference: invoice.reference,
+      orderId: order.id,
+      installmentId: action === 'installment' ? installmentId : null,
+    });
+
+    setProcessing(false);
+
+    if (result.success) {
+      setSubmitted(true);
+      setNotice('Payment submitted for admin review. Keep your transfer reference safe.');
+    } else {
+      setError(result.error || 'Could not submit payment for review.');
     }
   };
+
+  const isLoading = loadingOrder || (confirmedIntent && loadingInvoice && !invoice);
 
   return (
     <AppBackground>
@@ -187,15 +246,31 @@ export function PaymentScreen({ navigation, route }: Props) {
             </Pressable>
 
             <Text style={styles.title}>Bank Checkout</Text>
-            <Text style={styles.subtitle}>Review the order and create a bank invoice for admin approval.</Text>
+            <Text style={styles.subtitle}>
+              {confirmedIntent
+                ? 'Use the invoice reference as your transfer narration, then confirm after paying.'
+                : 'Review the amount and confirm you intend to make this bank transfer before continuing.'}
+            </Text>
 
             {notice ? <Text style={styles.noticeTextTop}>{notice}</Text> : null}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+                {order && confirmedIntent && !invoice && !loadingInvoice ? (
+                  <Pressable onPress={() => createInvoice(order)} style={styles.retryLink}>
+                    <Text style={styles.retryLinkText}>Retry invoice generation</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
 
-            {loadingOrder ? (
+            {isLoading ? (
               <View style={styles.loadingCard}>
-                <Spinner />
-                <Text style={styles.loadingText}>Loading order...</Text>
+                <ScreenPreloader
+                  fullScreen={false}
+                  markSize={40}
+                  message={loadingInvoice ? 'Generating invoice...' : 'Loading order...'}
+                />
               </View>
             ) : order ? (
               <>
@@ -213,10 +288,14 @@ export function PaymentScreen({ navigation, route }: Props) {
                   {(order.order_items ?? []).map((item, index) => (
                     <View key={item.id ?? `${order.id}-item-${index}`} style={styles.productRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.productName} numberOfLines={1}>{getItemName(item)}</Text>
+                        <Text style={styles.productName} numberOfLines={1}>
+                          {getItemName(item)}
+                        </Text>
                         <Text style={styles.productMeta}>Qty {item.quantity ?? 1}</Text>
                       </View>
-                      <Text style={styles.productAmount}>{toNaira(item.amount ?? item.price ?? item.price_at_purchase)}</Text>
+                      <Text style={styles.productAmount}>
+                        {toNaira(item.amount ?? item.price ?? item.price_at_purchase)}
+                      </Text>
                     </View>
                   ))}
 
@@ -233,7 +312,9 @@ export function PaymentScreen({ navigation, route }: Props) {
                       <Ionicons name="business-outline" size={20} color="#C084FC" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.bankTitle}>Bank invoice</Text>
+                      <Text style={styles.bankTitle}>
+                        {confirmedIntent ? 'Payment invoice' : 'Confirm payment'}
+                      </Text>
                       <Text style={styles.bankSubtitle}>{paymentSummary.helper}</Text>
                     </View>
                   </View>
@@ -241,49 +322,152 @@ export function PaymentScreen({ navigation, route }: Props) {
                   <View style={styles.bankRows}>
                     <InfoRow label="Invoice Type" value={paymentSummary.title} />
                     <InfoRow label="Payment Label" value={paymentSummary.label} />
-                    <InfoRow label="Invoice Amount" value={toNaira(paymentSummary.amount)} highlight />
+                    <InfoRow
+                      label="Amount to pay now"
+                      value={toNaira(invoice?.amount ?? paymentSummary.amount)}
+                      highlight
+                    />
                   </View>
 
-                  {bankDetails ? (
+                  {!confirmedIntent ? (
                     <>
-                      <View style={styles.bankRows}>
-                        <InfoRow label="Bank Name" value={bankDetails.bank_name} />
-                        <InfoRow label="Account Name" value={bankDetails.account_name} />
-                        <InfoRow label="Account Number" value={bankDetails.account_number} />
-                        <InfoRow label="Amount" value={toNaira(bankDetails.amount)} highlight />
-                        <InfoRow label="Invoice Reference" value={bankDetails.reference} highlight />
+                      <View style={styles.noticeBox}>
+                        <Text style={styles.noticeTitle}>Before you continue</Text>
+                        <Text style={styles.noticeText}>
+                          On the next step you will receive a payment invoice with a unique reference
+                          to use as your transfer narration. Admin is notified only after you confirm
+                          you have completed the transfer.
+                        </Text>
                       </View>
+
+                      <Pressable
+                        onPress={() => setIntentChecked((value) => !value)}
+                        style={styles.checkRow}
+                      >
+                        <View style={[styles.checkbox, intentChecked && styles.checkboxChecked]}>
+                          {intentChecked ? (
+                            <Ionicons name="checkmark" size={14} color={colors.textPrimary} />
+                          ) : null}
+                        </View>
+                        <Text style={styles.checkText}>
+                          I confirm I want to proceed with a bank transfer of{' '}
+                          <Text style={styles.checkEm}>{toNaira(paymentSummary.amount)}</Text> for
+                          this order.
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => {
+                          if (!intentChecked) return;
+                          setConfirmedIntent(true);
+                        }}
+                        disabled={!intentChecked}
+                        style={({ pressed }) => [
+                          styles.primaryButton,
+                          pressed && styles.pressed,
+                          !intentChecked && styles.disabled,
+                        ]}
+                      >
+                        <Text style={styles.primaryButtonText}>Continue to bank transfer</Text>
+                      </Pressable>
+                    </>
+                  ) : !submitted ? (
+                    <>
+                      {invoice ? (
+                        <View style={styles.bankRows}>
+                          <InfoRow label="Bank Name" value={invoice.bank_name} />
+                          <InfoRow label="Account Name" value={invoice.account_name} />
+                          <InfoRow label="Account Number" value={invoice.account_number} />
+                          <InfoRow label="Amount" value={toNaira(invoice.amount)} highlight />
+                          <InfoRow
+                            label="Invoice Reference"
+                            value={invoice.reference}
+                            highlight
+                          />
+                        </View>
+                      ) : (
+                        <View style={styles.noticeBox}>
+                          <Text style={styles.noticeTitle}>Invoice unavailable</Text>
+                          <Text style={styles.noticeText}>
+                            Invoice could not be loaded. Please retry or contact support.
+                          </Text>
+                        </View>
+                      )}
 
                       <View style={styles.noticeBox}>
                         <Text style={styles.noticeTitle}>Transfer narration</Text>
                         <Text style={styles.noticeText}>
-                          Use the invoice reference as your transfer narration. Admin will review the bank transfer before updating the order.
+                          Copy the invoice reference and paste it as your bank transfer narration.
+                          Transfer the exact amount, then confirm below.
                         </Text>
                       </View>
 
-                      <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('Orders')}>
-                        <Text style={styles.primaryButtonText}>Return to Orders</Text>
+                      <Pressable
+                        onPress={() => setTransferConfirmed((value) => !value)}
+                        disabled={!invoice}
+                        style={[styles.checkRow, !invoice && styles.disabled]}
+                      >
+                        <View
+                          style={[styles.checkbox, transferConfirmed && styles.checkboxChecked]}
+                        >
+                          {transferConfirmed ? (
+                            <Ionicons name="checkmark" size={14} color={colors.textPrimary} />
+                          ) : null}
+                        </View>
+                        <Text style={styles.checkText}>
+                          I have transferred{' '}
+                          <Text style={styles.checkEm}>
+                            {toNaira(invoice?.amount ?? paymentSummary.amount)}
+                          </Text>{' '}
+                          using reference{' '}
+                          <Text style={styles.checkEm}>{invoice?.reference ?? '—'}</Text>.
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={handleSubmitPayment}
+                        disabled={processing || !transferConfirmed || !invoice}
+                        style={({ pressed }) => [
+                          styles.primaryButton,
+                          pressed && styles.pressed,
+                          (processing || !transferConfirmed || !invoice) && styles.disabled,
+                        ]}
+                      >
+                        {processing ? (
+                          <View style={styles.loadingRow}>
+                            <Spinner small />
+                            <Text style={styles.primaryButtonText}>Submitting...</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.primaryButtonText}>I have made payment</Text>
+                        )}
                       </Pressable>
                     </>
                   ) : (
-                    <Pressable
-                      onPress={handleBankTransfer}
-                      disabled={processing}
-                      style={({ pressed }) => [
-                        styles.primaryButton,
-                        pressed && styles.pressed,
-                        processing && styles.disabled,
-                      ]}
-                    >
-                      {processing ? (
-                        <View style={styles.loadingRow}>
-                          <Spinner small />
-                          <Text style={styles.primaryButtonText}>Creating invoice...</Text>
+                    <>
+                      {invoice ? (
+                        <View style={styles.bankRows}>
+                          <InfoRow
+                            label="Invoice Reference"
+                            value={invoice.reference}
+                            highlight
+                          />
                         </View>
-                      ) : (
-                        <Text style={styles.primaryButtonText}>Create bank invoice</Text>
-                      )}
-                    </Pressable>
+                      ) : null}
+                      <View style={styles.successBox}>
+                        <Text style={styles.successTitle}>Submitted for admin review</Text>
+                        <Text style={styles.successText}>
+                          Admin will verify your bank transfer and approve the payment. You can track
+                          status from your orders page.
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={styles.primaryButton}
+                        onPress={() => navigation.navigate('Orders')}
+                      >
+                        <Text style={styles.primaryButtonText}>Return to Orders</Text>
+                      </Pressable>
+                    </>
                   )}
                 </View>
               </>
@@ -330,10 +514,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  errorBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
+  },
   errorText: {
     color: '#FCA5A5',
     fontSize: 12,
-    marginBottom: 12,
+    lineHeight: 18,
+  },
+  retryLink: {
+    marginTop: 8,
+  },
+  retryLinkText: {
+    color: '#FECACA',
+    fontSize: 12,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   noticeTextTop: {
     color: '#34D399',
@@ -349,10 +550,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.82)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.12)',
-  },
-  loadingText: {
-    color: colors.textMuted,
-    fontSize: 12,
   },
   orderCard: {
     padding: 16,
@@ -484,6 +681,7 @@ const styles = StyleSheet.create({
   },
   noticeBox: {
     marginTop: 2,
+    marginBottom: 12,
     padding: 12,
     borderRadius: 16,
     backgroundColor: 'rgba(250,204,21,0.08)',
@@ -500,6 +698,56 @@ const styles = StyleSheet.create({
     color: '#FDE68A',
     fontSize: 12,
     lineHeight: 18,
+  },
+  successBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.22)',
+  },
+  successTitle: {
+    color: '#6EE7B7',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  successText: {
+    color: '#A7F3D0',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
+    backgroundColor: 'rgba(2,6,23,0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  checkEm: {
+    color: colors.textPrimary,
+    fontWeight: '700',
   },
   primaryButton: {
     height: 52,

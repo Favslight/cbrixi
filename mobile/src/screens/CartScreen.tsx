@@ -16,6 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { ScreenPreloader } from '../components/ScreenPreloader';
 import { colors } from '../constants/theme';
 import {
   cartItemLineTotal,
@@ -23,6 +24,7 @@ import {
   checkoutCart,
   deleteCartItem,
   fetchCart,
+  getCheckoutOrder,
   toNaira,
   updateCartItemQuantity,
 } from '../services/cart';
@@ -99,15 +101,17 @@ export function CartScreen({ navigation, route }: Props) {
       }
 
       setError('');
-      const items = await fetchCart(token);
+      const [items, userProfile] = await Promise.all([
+        fetchCart(token),
+        fetchUserProfile(token).catch(() => null),
+      ]);
       setCartItems(items);
-      try {
-        const userProfile = await fetchUserProfile(token);
+      if (userProfile) {
         setProfile(userProfile);
         if (userProfile.cbrilliance_email_verified && userProfile.cbrilliance_email) {
           setExternalEmail(userProfile.cbrilliance_email);
         }
-      } catch {
+      } else {
         setProfile(null);
       }
     } catch {
@@ -196,7 +200,6 @@ export function CartScreen({ navigation, route }: Props) {
             (cartItem.cart_item_id ?? cartItem.id) !== itemId && cartItem.product_id !== item.product_id,
         ),
       );
-      await loadCart(true);
     } catch (removeError) {
       setError(
         removeError && typeof removeError === 'object' && 'message' in removeError
@@ -235,14 +238,28 @@ export function CartScreen({ navigation, route }: Props) {
         paymentMode,
         paymentMode === 'INSTALLMENT' && !cbrillianceVerified ? externalEmail.trim() : undefined,
       );
-      const orderId = response.order?.order?.id;
-      if (!response.success || !orderId) {
+
+      // Match web: only treat as failure when the API says success is false.
+      // Order may be nested (`order.order`) or flat (`order`) — both are valid.
+      // Failsafe: if success is missing but an order payload is present, still proceed.
+      const order = getCheckoutOrder(response);
+      if (response.success === false || (!response.success && !order)) {
         throw new Error(response.message || 'Checkout failed.');
       }
 
+      const summary = response.payment_summary;
+      const orderId = order?.id ?? '';
+
+      // Backend clears the cart after checkout — mirror web local reset.
+      setCartItems([]);
+
       if (paymentMode === 'INSTALLMENT') {
         Alert.alert(
-          cbrillianceVerified ? 'Installment order created' : 'Installment request pending admin approval',
+          !cbrillianceVerified && order?.status === 'AWAITING_APPROVAL'
+            ? 'Installment request pending admin approval'
+            : cbrillianceVerified
+              ? 'Installment order created'
+              : 'Installment request pending admin approval',
           cbrillianceVerified
             ? 'Your Cbrilliance email is already verified. Open Orders to start the first-deposit bank payment.'
             : 'Payment will be enabled on your Orders page after your Cbrilliance email is approved.',
@@ -251,18 +268,53 @@ export function CartScreen({ navigation, route }: Props) {
         return;
       }
 
+      const paymentTotal = Number(summary?.total_amount ?? order?.total_amount ?? total);
+      if (!orderId) {
+        // Order was created (cart cleared / admin notified) but id missing — send user to Orders.
+        Alert.alert('Order placed', 'Your order was created. Open Orders to continue payment.');
+        navigation.navigate('Orders');
+        return;
+      }
+
       navigation.navigate('Payment', {
         orderId,
-        total,
+        total: Number.isFinite(paymentTotal) ? paymentTotal : total,
         mode: paymentMode,
         action: 'order',
       });
     } catch (checkoutError) {
-      setError(checkoutError instanceof Error ? checkoutError.message : 'Checkout failed.');
+      // Failsafe: if the request errored after the backend already cleared the cart,
+      // recover by sending the user to Orders instead of a false failure.
+      try {
+        const cartAfter = await fetchCart(token);
+        if (cartAfter.length === 0) {
+          setCartItems([]);
+          Alert.alert(
+            'Order may have been placed',
+            'Your cart is empty after checkout. Open Orders to continue payment if an order was created.',
+          );
+          navigation.navigate('Orders');
+          return;
+        }
+      } catch {
+        // ignore recovery errors and show the original checkout error
+      }
+
+      setError(
+        checkoutError && typeof checkoutError === 'object' && 'message' in checkoutError
+          ? String((checkoutError as { message?: string }).message)
+          : checkoutError instanceof Error
+            ? checkoutError.message
+            : 'Checkout failed.',
+      );
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loading && cartItems.length === 0) {
+    return <ScreenPreloader message="Loading cart..." />;
+  }
 
   return (
     <AppBackground>
@@ -270,7 +322,9 @@ export function CartScreen({ navigation, route }: Props) {
         <View style={styles.container}>
           <FlatList
             data={cartItems}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) =>
+              String(item.cart_item_id ?? item.id ?? item.product_id ?? `cart-${index}`)
+            }
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadCart(true)} tintColor={colors.primary} />}
             ListHeaderComponent={
@@ -286,8 +340,6 @@ export function CartScreen({ navigation, route }: Props) {
                 </View>
 
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
-
-                {loading ? <Text style={styles.loadingText}>Loading cart...</Text> : null}
 
                 {!loading && cartItems.length === 0 ? (
                   <View style={styles.emptyState}>
@@ -438,9 +490,6 @@ export function CartScreen({ navigation, route }: Props) {
                             {cbrillianceVerified
                               ? 'Open Orders after checkout to pay the first deposit.'
                               : 'Payment starts after admin approval.'}
-                          </Text>
-                          <Text style={styles.paymentHintText}>
-                            The backend will calculate the required deposit and remaining balance.
                           </Text>
                         </View>
                       ) : null}

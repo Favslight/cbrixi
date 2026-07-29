@@ -41,6 +41,9 @@ export default function ReceiptDetailView({
   const companyEmail = company?.email || company?.support_email;
   const customerEmail = receipt.customer_email || receipt.email;
   const customerPhone = receipt.customer_phone || receipt.phone;
+  const customDetails = (receipt.custom_details ?? []).filter(
+    (detail) => detail.key.trim() || detail.value.trim()
+  );
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden">
@@ -170,6 +173,22 @@ export default function ReceiptDetailView({
           </div>
         )}
       </div>
+
+      {customDetails.length > 0 ? (
+        <div className="px-5 sm:px-7 pb-7">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-3">Details</h2>
+          <div className="rounded-xl border border-white/8 overflow-hidden">
+            <dl className="divide-y divide-white/5">
+              {customDetails.map((detail, index) => (
+                <div key={`${detail.key}-${index}`} className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-1 sm:gap-4 px-4 py-3 bg-white/[0.015]">
+                  <dt className="text-white/40 text-sm font-medium break-words">{detail.key || 'Detail'}</dt>
+                  <dd className="text-white/75 text-sm whitespace-pre-line break-words">{detail.value || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }

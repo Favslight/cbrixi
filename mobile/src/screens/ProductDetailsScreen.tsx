@@ -75,7 +75,11 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [selectedPlan, setSelectedPlan] = useState<'FULL' | 'INSTALLMENT'>(
-    product.installmentEnabled ? 'INSTALLMENT' : 'FULL',
+    product.installmentEnabled &&
+      product.installmentDurationMonths > 0 &&
+      product.minimumDepositPercentage > 0
+      ? 'INSTALLMENT'
+      : 'FULL',
   );
   const [busyAction, setBusyAction] = useState<'cart' | 'buy' | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -87,15 +91,27 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
     return product.imageUri ? [product.imageUri] : [];
   }, [product.imageUri, product.imageUris]);
 
+  const canUseInstallment =
+    product.installmentEnabled &&
+    product.installmentDurationMonths > 0 &&
+    product.minimumDepositPercentage > 0;
+
+  const firstPayment = useMemo(() => {
+    if (!canUseInstallment) {
+      return null;
+    }
+    return Math.round((product.priceValue * product.minimumDepositPercentage) / 100);
+  }, [canUseInstallment, product.minimumDepositPercentage, product.priceValue]);
+
   const installmentMonthlyEstimate = useMemo(() => {
-    if (!product.installmentEnabled) {
+    if (!canUseInstallment) {
       return product.priceLabel;
     }
 
-    const months = product.installmentDurationMonths > 0 ? product.installmentDurationMonths : 1;
+    const months = product.installmentDurationMonths;
     const monthly = product.priceValue / months;
     return `${toNaira(monthly)}/mo`;
-  }, [product.installmentEnabled, product.installmentDurationMonths, product.priceLabel, product.priceValue]);
+  }, [canUseInstallment, product.installmentDurationMonths, product.priceLabel, product.priceValue]);
   const imageHeight = Math.min(Math.max(height * 0.24, 170), 240);
   const contentBottomPadding = 132 + insets.bottom;
   const actionsBottom = Math.max(12, insets.bottom + 10);
@@ -146,8 +162,6 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
       setBusyAction(null);
     }
   };
-
-  const canUseInstallment = product.installmentEnabled && product.installmentDurationMonths > 0;
 
   return (
     <AppBackground>
@@ -205,14 +219,21 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Key Features</Text>
+            <Text style={styles.sectionTitle}>Product Information</Text>
             <View style={styles.detailGrid}>
               <DetailChip label="Category" value={product.category} />
-              <DetailChip label="In Stock" value={String(product.stock)} />
-              <DetailChip label="Deposit" value={`${product.minimumDepositPercentage}%`} />
-              <DetailChip label="Duration" value={`${product.installmentDurationMonths} months`} />
-              <DetailChip label="Grace" value={`${product.gracePeriodDays} days`} />
-              <DetailChip label="Fine" value={`${product.finePercentageOnDefault}%`} />
+              {canUseInstallment ? (
+                <>
+                  <DetailChip label="Duration" value={`${product.installmentDurationMonths} months`} />
+                  <DetailChip label="Min Deposit" value={`${product.minimumDepositPercentage}%`} />
+                  <DetailChip
+                    label="First Payment"
+                    value={firstPayment !== null ? toNaira(firstPayment) : '—'}
+                  />
+                </>
+              ) : (
+                <DetailChip label="Installment" value="Unavailable" />
+              )}
             </View>
           </View>
 
@@ -227,7 +248,11 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
             />
             <PlanCard
               title="EasyBuy Option"
-              subtitle={`${product.minimumDepositPercentage}% deposit, ${product.installmentDurationMonths} months, minimum wallet ${toNaira(product.minimumWalletBalanceRequired)}.`}
+              subtitle={
+                canUseInstallment
+                  ? `First payment ${firstPayment !== null ? toNaira(firstPayment) : '—'} (${product.minimumDepositPercentage}%), ${product.installmentDurationMonths} months.`
+                  : 'Installment unavailable'
+              }
               amount={installmentMonthlyEstimate}
               active={selectedPlan === 'INSTALLMENT'}
               disabled={!canUseInstallment}
@@ -238,16 +263,14 @@ export function ProductDetailsScreen({ navigation, route }: Props) {
               <View style={styles.installmentBox}>
                 <Text style={styles.installmentTitle}>Installment details</Text>
                 <Text style={styles.installmentText}>
-                  Submit your Cbrilliance email at checkout for admin approval before any payment is collected.
+                  First payment: {firstPayment !== null ? toNaira(firstPayment) : '—'} (
+                  {product.minimumDepositPercentage}%)
                 </Text>
                 <Text style={styles.installmentText}>
-                  The backend will calculate the exact first deposit, monthly amount, and remaining balance after approval.
+                  Duration: {product.installmentDurationMonths} months
                 </Text>
                 <Text style={styles.installmentText}>
-                  Minimum wallet balance: {toNaira(product.minimumWalletBalanceRequired)}
-                </Text>
-                <Text style={styles.installmentText}>
-                  Default fine: {product.finePercentageOnDefault}% after {product.gracePeriodDays} days grace.
+                  Submit your Cbrilliance email at checkout for approval before payment is collected.
                 </Text>
               </View>
             ) : null}

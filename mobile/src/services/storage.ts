@@ -9,10 +9,32 @@ const keys = {
   favoriteProducts: 'cbrixi.favoriteProducts',
 };
 
+const memoryCache = new Map<string, string | null>();
+
 export const storage = {
   keys,
-  getString: (key: string) => AsyncStorage.getItem(key),
-  setString: (key: string, value: string) => AsyncStorage.setItem(key, value),
-  remove: (key: string) => AsyncStorage.removeItem(key),
-  multiRemove: (entries: string[]) => AsyncStorage.multiRemove(entries),
+  getString: async (key: string) => {
+    if (memoryCache.has(key)) {
+      return memoryCache.get(key) ?? null;
+    }
+    const value = await AsyncStorage.getItem(key);
+    memoryCache.set(key, value);
+    return value;
+  },
+  setString: async (key: string, value: string) => {
+    memoryCache.set(key, value);
+    await AsyncStorage.setItem(key, value);
+  },
+  multiSet: async (entries: Array<[string, string]>) => {
+    entries.forEach(([key, value]) => memoryCache.set(key, value));
+    await AsyncStorage.multiSet(entries);
+  },
+  remove: async (key: string) => {
+    memoryCache.set(key, null);
+    await AsyncStorage.removeItem(key);
+  },
+  multiRemove: async (entries: string[]) => {
+    entries.forEach((key) => memoryCache.set(key, null));
+    await AsyncStorage.multiRemove(entries);
+  },
 };

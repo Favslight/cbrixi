@@ -7,6 +7,7 @@
     "icon": "./assets/images/smartphone.png",
     "userInterfaceStyle": "dark",
     "splash": {
+      "image": "./assets/images/favicon.png",
       "backgroundColor": "#020617"
     },
     "assetBundlePatterns": [
@@ -20,6 +21,17 @@
     },
     "ios": {
       "supportsTablet": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "79bb850f-355a-4ccd-9d64-52747341a246"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/79bb850f-355a-4ccd-9d64-52747341a246"
     }
   }
 }

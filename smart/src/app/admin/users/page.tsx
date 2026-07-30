@@ -53,10 +53,25 @@ interface User extends AdminOrderDisplaySource {
   external_user_id?: string | null;
   status?: string | null;
   created_at: string;
+  referral_code?: string | null;
+  referred_by_user_id?: string | null;
+  referral_count?: number;
+  referral_balance?: string | number | null;
+  available_referral_balance?: string | number | null;
+  pending_referral_payout_balance?: string | number | null;
+  paid_out_referral_balance?: string | number | null;
   cbrilliance_email?: string | null;
   cbrilliance_email_verified?: boolean;
   cbrilliance_email_verified_at?: string | null;
   orders: Order[];
+}
+
+interface UsersPagination {
+  limit: number;
+  offset: number;
+  page: number;
+  total: number;
+  has_more: boolean;
 }
 
 const Spinner = () => (
@@ -90,6 +105,7 @@ const fmtDate = (d?: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set';
 
 const paidValue = (order: Order) => Number(order.paid_amount ?? order.deposit_amount ?? 0);
+const PAGE_SIZE = 50;
 
 const normalizeSearch = (value: string | number | boolean | null | undefined) =>
   String(value ?? '').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
@@ -108,22 +124,30 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<UsersPagination | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
+  const fetchUsers = useCallback(async (offset = 0, append = false) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError('');
     try {
       const token = localStorage.getItem('adminToken') ?? '';
-      const res = await fetch(`${API_URL}/admin/users/details`, {
+      const res = await fetch(`${API_URL}/admin/users/details?limit=${PAGE_SIZE}&offset=${offset}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => ({}));
-      if (data.success) setUsers(data.users ?? []);
+      if (data.success) {
+        const nextUsers = Array.isArray(data.users) ? data.users : [];
+        setUsers((current) => (append ? [...current, ...nextUsers] : nextUsers));
+        setPagination(data.pagination ?? null);
+      }
       else setError(data.message || 'Failed to load users');
     } catch {
       setError('Connection error.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
@@ -143,6 +167,11 @@ export default function AdminUsersPage() {
       user.last_name,
       user.external_user_id,
       user.status,
+      user.referral_code,
+      user.referral_count,
+      user.referral_balance,
+      user.pending_referral_payout_balance,
+      user.paid_out_referral_balance,
       user.cbrilliance_email,
       ...user.orders.flatMap((order) => [
         orderSummary(order),
@@ -159,13 +188,16 @@ export default function AdminUsersPage() {
   });
 
   const totalRevenue = users.reduce((acc, user) => acc + user.orders.reduce((orderAcc, order) => orderAcc + paidValue(order), 0), 0);
+  const referralBalance = users.reduce((sum, user) => sum + Number(user.referral_balance ?? user.available_referral_balance ?? 0), 0);
+  const pendingPayouts = users.reduce((sum, user) => sum + Number(user.pending_referral_payout_balance ?? 0), 0);
 
   return (
     <div className="p-4 pb-8 sm:p-8 min-h-screen max-w-[100vw]">
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Users</h1>
         <p className="text-white/40 text-sm mt-1 leading-relaxed">
-          {users.length} registered customers · <span className="text-white/60 tabular-nums">{formatMoney(totalRevenue)}</span> collected
+          {users.length}
+          {pagination?.total ? ` of ${pagination.total}` : ''} registered customers · <span className="text-white/60 tabular-nums">{formatMoney(totalRevenue)}</span> collected
         </p>
       </motion.div>
 
@@ -175,6 +207,8 @@ export default function AdminUsersPage() {
           { label: 'Active users', value: users.filter((user) => user.status === 'ACTIVE').length },
           { label: 'Total orders', value: users.reduce((sum, user) => sum + user.orders.length, 0) },
           { label: 'Revenue collected', value: formatMoney(totalRevenue) },
+          { label: 'Referral balance', value: formatMoney(referralBalance) },
+          { label: 'Pending payouts', value: formatMoney(pendingPayouts) },
         ].map((stat, index) => (
           <motion.div
             key={stat.label}
@@ -237,11 +271,16 @@ export default function AdminUsersPage() {
                       <p className="text-white/40 text-xs truncate">{user.email}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 sm:hidden text-xs">
                         <span className="text-white/50">{user.orders.length} orders</span>
+                        <span className="text-white/50">{user.referral_count ?? 0} referrals</span>
                         <span className="text-emerald-400/90 font-medium tabular-nums">{formatMoney(totalPaid)} paid</span>
                       </div>
                     </div>
 
                     <div className="hidden sm:flex items-center gap-4 md:gap-6 text-sm shrink-0">
+                      <div className="text-right">
+                        <p className="text-white/40 text-xs">Referrals</p>
+                        <p className="font-semibold">{user.referral_count ?? 0}</p>
+                      </div>
                       <div className="text-right">
                         <p className="text-white/40 text-xs">Orders</p>
                         <p className="font-semibold">{user.orders.length}</p>
@@ -278,7 +317,13 @@ export default function AdminUsersPage() {
                             {[
                               { label: 'Email', val: user.email },
                               { label: 'Username', val: user.username || 'N/A' },
+                              { label: 'Referral code', val: user.referral_code || 'N/A' },
+                              { label: 'Referrals', val: String(user.referral_count ?? 0) },
+                              { label: 'Referral balance', val: formatMoney(user.referral_balance ?? user.available_referral_balance ?? 0) },
+                              { label: 'Pending payout', val: formatMoney(user.pending_referral_payout_balance ?? 0) },
+                              { label: 'Paid out', val: formatMoney(user.paid_out_referral_balance ?? 0) },
                               { label: 'Cbrilliance email', val: user.cbrilliance_email || 'N/A' },
+                              { label: 'Cbrilliance status', val: user.cbrilliance_email_verified ? 'Verified' : 'Unverified' },
                               { label: 'Member since', val: fmtDate(user.created_at) },
                             ].map(({ label, val }) => (
                               <div key={label} className="bg-white/4 rounded-xl p-3 border border-white/6">
@@ -390,6 +435,20 @@ export default function AdminUsersPage() {
 
           {filtered.length === 0 && !loading && (
             <p className="text-center py-16 text-white/30">No users found.</p>
+          )}
+
+          {pagination?.has_more && (
+            <div className="flex justify-center pt-4">
+              <button
+                type="button"
+                onClick={() => fetchUsers(pagination.offset + pagination.limit, true)}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-5 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-500/20 disabled:opacity-50"
+              >
+                {loadingMore && <Spinner />}
+                {loadingMore ? 'Loading...' : 'Load more users'}
+              </button>
+            </div>
           )}
         </div>
       )}

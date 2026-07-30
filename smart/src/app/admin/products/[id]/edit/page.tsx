@@ -53,6 +53,51 @@ interface EditFormState {
   variants: ProductVariantForm[];
 }
 
+interface AdminProductDetailResponse {
+  success?: boolean;
+  message?: string;
+  product?: AdminProductDetail;
+}
+
+interface AdminProductVariant {
+  id?: string | number | null;
+  name?: string | null;
+  sku?: string | null;
+  price?: string | number | null;
+  is_active?: boolean;
+  specs?: Record<string, string | number | boolean | null | undefined> | null;
+}
+
+interface AdminProductSpecificationSection {
+  section?: string | null;
+  items?: Array<{
+    key?: string | null;
+    value?: string | null;
+  }> | null;
+}
+
+interface AdminProductDetail {
+  id: string;
+  name?: string | null;
+  price?: string | number | null;
+  discount_enabled?: boolean;
+  discount_percentage?: string | number | null;
+  display_order?: string | number | null;
+  description?: string | null;
+  category?: string | null;
+  installment_enabled?: boolean;
+  minimum_deposit_percentage?: string | number | null;
+  installment_duration_months?: string | number | null;
+  image?: string | null;
+  image_url?: string | null;
+  image_public_id?: string | null;
+  image_urls?: string[] | null;
+  image_public_ids?: string[] | null;
+  in_stock?: boolean;
+  variants?: AdminProductVariant[] | null;
+  specifications?: AdminProductSpecificationSection[] | null;
+}
+
 export default function EditProductPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -82,6 +127,9 @@ export default function EditProductPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
   const [error, setError] = useState('');
+  const [productName, setProductName] = useState('');
+  const [inStock, setInStock] = useState(true);
+  const [stockSaving, setStockSaving] = useState(false);
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -90,14 +138,14 @@ export default function EditProductPage() {
       setError('');
       try {
         const token = localStorage.getItem('adminToken') ?? '';
-        const res = await fetch(`${API_URL}/admin/products`, {
+        const res = await fetch(`${API_URL}/admin/products/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await res.json();
-        const product = (data.products || []).find((p: any) => String(p.id) === String(id));
+        const data = (await res.json().catch(() => ({}))) as AdminProductDetailResponse;
+        const product = data.product;
 
-        if (!product) {
-          setError('Product not found.');
+        if (!res.ok || !data.success || !product) {
+          setError(data.message || 'Product not found.');
           setBootLoading(false);
           return;
         }
@@ -113,8 +161,8 @@ export default function EditProductPage() {
         const primaryImageUrl = String(product.image_url || product.image || imageUrls[0] || '');
         const thumbnailIndex = Math.max(0, existingImages.findIndex((image) => image.url === primaryImageUrl));
         const variants = (Array.isArray(product.variants) ? product.variants : [])
-          .filter((variant: any) => variant && variant.is_active !== false)
-          .map((variant: any) => {
+          .filter((variant) => variant && variant.is_active !== false)
+          .map((variant) => {
             const specs = variant.specs && typeof variant.specs === 'object' ? variant.specs : {};
             return {
               id: variant.id ? String(variant.id) : undefined,
@@ -126,14 +174,16 @@ export default function EditProductPage() {
               price: String(variant.price ?? ''),
             };
           });
-        const specifications = (Array.isArray(product.specifications) ? product.specifications : []).map((section: any) => ({
+        const specifications = (Array.isArray(product.specifications) ? product.specifications : []).map((section) => ({
           section: String(section.section ?? ''),
-          items: (Array.isArray(section.items) ? section.items : []).map((item: any) => ({
+          items: (Array.isArray(section.items) ? section.items : []).map((item) => ({
             key: String(item.key ?? ''),
             value: String(item.value ?? ''),
           })),
         }));
 
+        setProductName(String(product.name ?? ''));
+        setInStock(product.in_stock !== false);
         setForm({
           name: String(product.name ?? ''),
           price: String(product.price ?? ''),
@@ -161,6 +211,34 @@ export default function EditProductPage() {
 
     loadProduct();
   }, [API_URL, id]);
+
+  const handleStockToggle = async () => {
+    if (!id) return;
+    const nextInStock = !inStock;
+    const actionLabel = nextInStock ? 'put this product back in stock' : 'mark this product out of stock';
+    if (!confirm(`Are you sure you want to ${actionLabel}?`)) return;
+
+    setStockSaving(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('adminToken') ?? '';
+      const res = await fetch(`${API_URL}/admin/products/${id}/${nextInStock ? 'in-stock' : 'out-of-stock'}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false || !data.product) {
+        setError(data.message || `Failed to ${actionLabel}.`);
+        return;
+      }
+      setProductName(String(data.product.name ?? productName));
+      setInStock(data.product.in_stock !== false);
+    } catch {
+      setError(`Failed to ${actionLabel}.`);
+    } finally {
+      setStockSaving(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -525,8 +603,36 @@ export default function EditProductPage() {
       </Link>
 
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Edit Product</h1>
-        <p className="text-white/40 text-sm mt-1">Update product details, image order, and thumbnail selection.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Edit Product</h1>
+            <p className="text-white/40 text-sm mt-1">Update product details, image order, and thumbnail selection.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+              inStock
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                : 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300'
+            }`}>
+              {inStock ? 'In stock' : 'Out of stock'}
+            </span>
+            <button
+              type="button"
+              onClick={handleStockToggle}
+              disabled={stockSaving}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                inStock
+                  ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-200 hover:bg-yellow-500/20'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20'
+              }`}
+            >
+              {stockSaving ? 'Saving...' : inStock ? 'Mark out of stock' : 'Put back in stock'}
+            </button>
+          </div>
+        </div>
+        {productName && productName !== form.name && (
+          <p className="mt-2 text-xs text-white/35">Loaded {productName}</p>
+        )}
       </motion.div>
 
       {error && (

@@ -37,6 +37,33 @@ const CloseIcon = () => (
   </svg>
 );
 
+function AccountAvatar({
+  isAdmin,
+  userInitial,
+  size = "sm",
+}: {
+  isAdmin: boolean;
+  userInitial: string | null;
+  size?: "sm" | "md";
+}) {
+  const box = size === "md" ? "w-6 h-6 text-xs" : "w-5 h-5 text-sm";
+  if (isAdmin) {
+    return (
+      <div className={`${box} flex items-center justify-center font-bold bg-purple-500/20 text-purple-400 rounded-full`}>
+        A
+      </div>
+    );
+  }
+  if (userInitial) {
+    return (
+      <div className={`${box} flex items-center justify-center font-bold bg-blue-500/20 text-blue-400 rounded-full`}>
+        {userInitial}
+      </div>
+    );
+  }
+  return <UserIcon />;
+}
+
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -48,24 +75,27 @@ export default function Navbar() {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     
-    // Check for logged in user
-    const userData = localStorage.getItem("userData");
-    if (userData) {
-        try {
-            const parsed = JSON.parse(userData);
-            setUser(parsed.user ?? parsed);
-        } catch (e) {
-            console.error("Error parsing user data", e);
-        }
-    }
+    const authTimer = window.setTimeout(() => {
+      const userData = localStorage.getItem("userData");
+      if (userData) {
+          try {
+              const parsed = JSON.parse(userData);
+              setUser(parsed.user ?? parsed);
+          } catch (e) {
+              console.error("Error parsing user data", e);
+          }
+      }
 
-    // Check for admin login
-    const adminToken = localStorage.getItem("adminToken");
-    if (adminToken) {
-        setIsAdmin(true);
-    }
+      const adminToken = localStorage.getItem("adminToken");
+      if (adminToken) {
+          setIsAdmin(true);
+      }
+    }, 0);
 
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => {
+      window.clearTimeout(authTimer);
+      window.removeEventListener('scroll', onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -92,27 +122,7 @@ export default function Navbar() {
   }, [isAdmin, user]);
 
   const userInitial = user?.firstname ? user.firstname.charAt(0).toUpperCase() : null;
-  const adminInitial = "A"; // Simple initial for admin
   const accountHref = isAdmin ? "/admin" : user ? "/profile" : "/auth/login";
-
-  const AccountAvatar = ({ size = "sm" }: { size?: "sm" | "md" }) => {
-    const box = size === "md" ? "w-6 h-6 text-xs" : "w-5 h-5 text-sm";
-    if (isAdmin) {
-      return (
-        <div className={`${box} flex items-center justify-center font-bold bg-purple-500/20 text-purple-400 rounded-full`}>
-          {adminInitial}
-        </div>
-      );
-    }
-    if (userInitial) {
-      return (
-        <div className={`${box} flex items-center justify-center font-bold bg-blue-500/20 text-blue-400 rounded-full`}>
-          {userInitial}
-        </div>
-      );
-    }
-    return <UserIcon />;
-  };
 
   return (
     <>
@@ -121,8 +131,8 @@ export default function Navbar() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled
-          ? 'bg-gray-950/80 backdrop-blur-xl border-b border-white/8 shadow-2xl shadow-black/40'
-          : 'bg-transparent'
+          ? 'bg-gray-950/90 backdrop-blur-xl border-b border-white/10 shadow-2xl shadow-black/45'
+          : 'bg-gray-950/72 backdrop-blur-xl border-b border-white/8 shadow-lg shadow-black/25'
           }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -156,7 +166,7 @@ export default function Navbar() {
               <IconButton
                 href={accountHref}
                 label="Account"
-                Icon={() => <AccountAvatar />}
+                Icon={() => <AccountAvatar isAdmin={isAdmin} userInitial={userInitial} />}
               />
               
                 <motion.a
@@ -193,7 +203,7 @@ export default function Navbar() {
                 aria-label="Account"
                 className="w-9 h-9 flex items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-all"
               >
-                <AccountAvatar />
+                <AccountAvatar isAdmin={isAdmin} userInitial={userInitial} />
               </a>
               <button
                 onClick={() => setMobileOpen((v) => !v)}
@@ -251,7 +261,7 @@ export default function Navbar() {
               ))}
               <div className="flex gap-3 pt-2 border-t border-white/10 mt-2">
                 <a href={accountHref} className="text-white/60 hover:text-white transition-colors" aria-label="Account">
-                  <AccountAvatar size="md" />
+                  <AccountAvatar isAdmin={isAdmin} userInitial={userInitial} size="md" />
                 </a>
               </div>
             </div>

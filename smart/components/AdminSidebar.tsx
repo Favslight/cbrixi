@@ -11,6 +11,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.cbrixi.com';
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: GridIcon },
   { label: 'Products', href: '/admin/products', icon: BoxIcon },
+  { label: 'Hero Carousel', href: '/admin/hero-carousel', icon: HeroCarouselIcon },
   { label: 'Campaigns', href: '/admin/campaigns', icon: CampaignsIcon },
   { label: 'Orders', href: '/admin/orders', icon: OrdersIcon },
   { label: 'Users', href: '/admin/users', icon: UsersIcon },
@@ -163,6 +164,15 @@ function CampaignsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+    </svg>
+  );
+}
+function HeroCarouselIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 15l3-3 2 2 3-4 2 3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h.01" />
     </svg>
   );
 }

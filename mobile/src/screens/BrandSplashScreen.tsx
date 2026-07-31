@@ -122,7 +122,7 @@ export function BrandSplashScreen({ navigation }: Props) {
             },
           ]}
         >
-          <BrandMark size={72} />
+          <BrandMark size={88} />
         </Animated.View>
 
         <Animated.View
@@ -155,6 +155,19 @@ const styles = StyleSheet.create({
   },
   markWrap: {
     marginBottom: 4,
+    width: 116,
+    height: 116,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
   wordmark: {
     fontSize: 34,

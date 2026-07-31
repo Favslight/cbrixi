@@ -17,6 +17,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { BottomNav } from '../components/BottomNav';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenPreloader } from '../components/ScreenPreloader';
 import { TextField } from '../components/TextField';
@@ -259,21 +260,22 @@ export function ProfileScreen({ navigation }: Props) {
   return (
     <AppBackground>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => loadAll(true)} tintColor={colors.primary} />
-          }
-        >
-          <View style={styles.topBar}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
-            </Pressable>
-            <Text style={styles.headerTitle}>Profile</Text>
-            <View style={styles.topBarSpacer} />
-          </View>
+        <View style={styles.container}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => loadAll(true)} tintColor={colors.primary} />
+            }
+          >
+            <View style={styles.topBar}>
+              <Pressable onPress={() => navigation.navigate('Home')} style={styles.backButton}>
+                <Ionicons name="home-outline" size={20} color={colors.textPrimary} />
+              </Pressable>
+              <Text style={styles.headerTitle}>Profile</Text>
+              <View style={styles.topBarSpacer} />
+            </View>
 
-          <View style={styles.card}>
+            <View style={styles.card}>
             <View style={styles.identityRow}>
               <LinearGradient colors={gradients.logoTile} style={styles.avatar}>
                 <Text style={styles.avatarText}>{initial}</Text>
@@ -578,8 +580,10 @@ export function ProfileScreen({ navigation }: Props) {
                 </>
               ) : null}
             </View>
-          </View>
-        </ScrollView>
+            </View>
+          </ScrollView>
+          <BottomNav active="Profile" navigation={navigation} />
+        </View>
       </SafeAreaView>
     </AppBackground>
   );
@@ -604,9 +608,10 @@ function StatCard({
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  container: { flex: 1 },
   content: {
     paddingHorizontal: 14,
-    paddingBottom: 36,
+    paddingBottom: 126,
   },
   topBar: {
     flexDirection: 'row',

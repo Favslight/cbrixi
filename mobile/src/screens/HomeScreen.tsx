@@ -16,6 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { BottomNav } from '../components/BottomNav';
 import { ScreenPreloader } from '../components/ScreenPreloader';
 import { colors } from '../constants/theme';
 import { getFavoriteProducts, toggleFavoriteProduct } from '../services/favorites';
@@ -205,12 +206,12 @@ export function HomeScreen({ navigation }: Props) {
             ListHeaderComponent={
               <View style={styles.headerContent}>
                 <View style={styles.topRow}>
-                  <Pressable style={styles.profileEntry} onPress={() => navigation.navigate('Profile')}>
+                  <View style={styles.profileEntry}>
                     <View style={styles.avatarButton}>
                       <Text style={styles.avatarInitial}>{avatarInitial}</Text>
                     </View>
                     <Text style={styles.greetingText}>Hi {firstName}</Text>
-                  </Pressable>
+                  </View>
                   <View style={styles.headerActions}>
                     <Pressable
                       style={styles.iconButton}
@@ -254,11 +255,6 @@ export function HomeScreen({ navigation }: Props) {
                     );
                   })}
                 </ScrollView>
-
-                <View style={styles.heroCard}>
-                  <Text style={styles.heroTitle}>New Arrivals</Text>
-                  <Text style={styles.heroSubTitle}>Premium tech from N14,999/month</Text>
-                </View>
 
                 <Text style={styles.sectionTitle}>Products</Text>
 
@@ -305,24 +301,7 @@ export function HomeScreen({ navigation }: Props) {
             ListFooterComponent={loading ? <Text style={styles.loadingText}>Loading products...</Text> : null}
           />
 
-          <View style={styles.bottomNav}>
-            <Pressable style={styles.bottomNavItem}>
-              <Ionicons name="home" size={18} color={colors.textPrimary} />
-              <Text style={[styles.bottomLabel, styles.bottomLabelActive]}>Home</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Favorites')}>
-              <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Wishlist</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Cart')}>
-              <Ionicons name="cart-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Cart</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Orders')}>
-              <Ionicons name="receipt-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Orders</Text>
-            </Pressable>
-          </View>
+          <BottomNav active="Home" navigation={navigation} />
         </View>
       </SafeAreaView>
     </AppBackground>
@@ -456,23 +435,6 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.textPrimary,
   },
-  heroCard: {
-    borderRadius: 14,
-    backgroundColor: '#1D4ED8',
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    marginBottom: 12,
-  },
-  heroTitle: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  heroSubTitle: {
-    color: '#BFDBFE',
-    fontSize: 12,
-    marginTop: 4,
-  },
   sectionTitle: {
     color: colors.textPrimary,
     fontSize: 17,
@@ -552,33 +514,5 @@ const styles = StyleSheet.create({
     color: '#60A5FA',
     fontSize: 10,
     marginTop: 1,
-  },
-  bottomNav: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 12,
-    height: 58,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.2)',
-    backgroundColor: 'rgba(2, 6, 23, 0.95)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
-  },
-  bottomNavItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  bottomLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  bottomLabelActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
   },
 });

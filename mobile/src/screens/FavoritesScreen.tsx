@@ -6,6 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { AppBackground } from '../components/AppBackground';
+import { BottomNav } from '../components/BottomNav';
 import { colors } from '../constants/theme';
 import { getFavoriteProducts, removeFavoriteProduct } from '../services/favorites';
 import type { RootStackParamList } from '../types/navigation';
@@ -72,24 +73,7 @@ export function FavoritesScreen({ navigation }: Props) {
             )}
           />
 
-          <View style={styles.bottomNav}>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Home')}>
-              <Ionicons name="home-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Home</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem}>
-              <Ionicons name="heart" size={18} color={colors.textPrimary} />
-              <Text style={[styles.bottomLabel, styles.bottomLabelActive]}>Wishlist</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Cart')}>
-              <Ionicons name="cart-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Cart</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Orders')}>
-              <Ionicons name="receipt-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Orders</Text>
-            </Pressable>
-          </View>
+          <BottomNav active="Favorites" navigation={navigation} />
         </View>
       </SafeAreaView>
     </AppBackground>
@@ -177,33 +161,5 @@ const styles = StyleSheet.create({
     color: '#60A5FA',
     fontSize: 10,
     marginTop: 1,
-  },
-  bottomNav: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 12,
-    height: 58,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.2)',
-    backgroundColor: 'rgba(2, 6, 23, 0.95)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
-  },
-  bottomNavItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  bottomLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  bottomLabelActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
   },
 });

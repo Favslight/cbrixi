@@ -39,7 +39,7 @@ export function ScreenPreloader({
 
   const content = (
     <View style={[styles.center, !fullScreen && styles.inlineCenter]}>
-      <Animated.View style={{ transform: [{ rotate }] }}>
+      <Animated.View style={[styles.logoTile, { width: markSize + 18, height: markSize + 18, borderRadius: 14 }, { transform: [{ rotate }] }]}>
         <BrandMark size={markSize} />
       </Animated.View>
       {message ? <Text style={styles.message}>{message}</Text> : null}
@@ -65,6 +65,18 @@ const styles = StyleSheet.create({
     flex: 0,
     minHeight: 140,
     width: '100%',
+  },
+  logoTile: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
+    shadowColor: '#000',
+    shadowOpacity: 0.24,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   message: {
     color: colors.textSecondary,

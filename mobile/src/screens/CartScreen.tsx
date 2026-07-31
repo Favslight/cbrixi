@@ -16,6 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBackground } from '../components/AppBackground';
+import { BottomNav } from '../components/BottomNav';
 import { ScreenPreloader } from '../components/ScreenPreloader';
 import { colors } from '../constants/theme';
 import {
@@ -523,25 +524,7 @@ export function CartScreen({ navigation, route }: Props) {
             }
           />
 
-          <View style={styles.bottomNav}>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Home')}>
-              <Ionicons name="home-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Home</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Favorites')}>
-              <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Wishlist</Text>
-            </Pressable>
-            <Pressable style={styles.bottomNavItemActive}>
-              <View style={styles.activeCartBubble}>
-                <Ionicons name="cart" size={18} color={colors.background} />
-              </View>
-            </Pressable>
-            <Pressable style={styles.bottomNavItem} onPress={() => navigation.navigate('Orders')}>
-              <Ionicons name="receipt-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.bottomLabel}>Orders</Text>
-            </Pressable>
-          </View>
+          <BottomNav active="Cart" navigation={navigation} />
         </View>
       </SafeAreaView>
     </AppBackground>
@@ -895,47 +878,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
-  },
-  bottomNav: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 12,
-    height: 58,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.2)',
-    backgroundColor: 'rgba(2, 6, 23, 0.95)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
-  },
-  bottomNavItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  bottomNavItemActive: {
-    width: 60,
-    height: 60,
-    marginTop: -18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeCartBubble: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.textPrimary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  bottomLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
   },
   pressed: {
     opacity: 0.92,

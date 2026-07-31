@@ -21,6 +21,7 @@ const readabilityOverlayClass: Record<string, string> = {
 export default function Hero() {
   const [slides, setSlides] = useState<HeroCarouselSlide[]>([]);
   const [index, setIndex] = useState(0);
+  const [failedVideoIds, setFailedVideoIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +66,8 @@ export default function Hero() {
     slide.badge_text
   );
   const altText = slide.alt_text || slide.title || 'Cbrixi homepage hero advert';
+  const isVideo = slide.media_type === 'VIDEO' && Boolean(slide.video_url) && !failedVideoIds.has(slide.id);
+  const fallbackImage = slide.image_url;
 
   return (
     <section id="hero" className="relative min-h-screen overflow-hidden pt-20" aria-label="Homepage featured adverts">
@@ -77,23 +80,54 @@ export default function Hero() {
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="absolute inset-0"
         >
-          <Image
-            src={slide.image_url}
-            alt={altText}
-            fill
-            priority
-            sizes="100vw"
-            className={`object-cover ${slide.mobile_image_url ? 'hidden sm:block' : ''}`}
-          />
-          {slide.mobile_image_url && (
-            <Image
-              src={slide.mobile_image_url}
-              alt={altText}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover sm:hidden"
-            />
+          {isVideo ? (
+            <>
+              <video
+                src={slide.video_url ?? undefined}
+                autoPlay
+                muted
+                loop
+                playsInline
+                poster={slide.image_url ?? undefined}
+                onError={() => setFailedVideoIds((current) => new Set(current).add(slide.id))}
+                className={`h-full w-full object-cover ${slide.mobile_video_url ? 'hidden sm:block' : ''}`}
+              />
+              {slide.mobile_video_url && (
+                <video
+                  src={slide.mobile_video_url}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster={slide.mobile_image_url || slide.image_url || undefined}
+                  onError={() => setFailedVideoIds((current) => new Set(current).add(slide.id))}
+                  className="h-full w-full object-cover sm:hidden"
+                />
+              )}
+            </>
+          ) : fallbackImage ? (
+            <>
+              <Image
+                src={fallbackImage}
+                alt={altText}
+                fill
+                priority
+                sizes="100vw"
+                className={`object-cover ${slide.mobile_image_url ? 'hidden sm:block' : ''}`}
+              />
+              {slide.mobile_image_url && (
+                <Image
+                  src={slide.mobile_image_url}
+                  alt={altText}
+                  fill
+                  priority
+                  sizes="100vw"
+                  className="object-cover sm:hidden"
+                />
+              )}
+            </>
+          ) : (
+            <div className="h-full w-full bg-[#07070a]" />
           )}
         </motion.div>
       </AnimatePresence>

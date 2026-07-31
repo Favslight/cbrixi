@@ -9,16 +9,20 @@ import {
   saveAdminHeroCarouselSlide,
   setAdminHeroCarouselActive,
   type HeroCarouselSlide,
+  type HeroMediaType,
   type HeroTextPosition,
 } from '@/lib/heroCarousel';
 
 const emptyForm = {
+  media_type: 'IMAGE' as HeroMediaType,
   title: '',
   eyebrow: '',
   subtitle: '',
   description: '',
   image_url: '',
   mobile_image_url: '',
+  video_url: '',
+  mobile_video_url: '',
   alt_text: '',
   link_url: '',
   product_id: '',
@@ -36,12 +40,15 @@ type FormState = typeof emptyForm;
 
 function slideToForm(slide: HeroCarouselSlide): FormState {
   return {
+    media_type: slide.media_type ?? 'IMAGE',
     title: slide.title ?? '',
     eyebrow: slide.eyebrow ?? '',
     subtitle: slide.subtitle ?? '',
     description: slide.description ?? '',
     image_url: slide.image_url ?? '',
     mobile_image_url: slide.mobile_image_url ?? '',
+    video_url: slide.video_url ?? '',
+    mobile_video_url: slide.mobile_video_url ?? '',
     alt_text: slide.alt_text ?? '',
     link_url: slide.link_url ?? '',
     product_id: slide.product_id ?? '',
@@ -65,6 +72,8 @@ export default function AdminHeroCarouselPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [mobileImageFile, setMobileImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [mobileVideoFile, setMobileVideoFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -98,12 +107,21 @@ export default function AdminHeroCarouselPage() {
     setForm(emptyForm);
     setImageFile(null);
     setMobileImageFile(null);
+    setVideoFile(null);
+    setMobileVideoFile(null);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editing && !imageFile && !form.image_url.trim()) {
+    const hasExistingImage = editing?.image_url && form.media_type === (editing.media_type ?? 'IMAGE');
+    const hasExistingVideo = editing?.video_url && form.media_type === editing.media_type;
+
+    if (form.media_type === 'IMAGE' && !imageFile && !form.image_url.trim() && !hasExistingImage) {
       setError('Upload an image or provide an image URL.');
+      return;
+    }
+    if (form.media_type === 'VIDEO' && !videoFile && !form.video_url.trim() && !hasExistingVideo) {
+      setError('Upload a video or provide a video URL.');
       return;
     }
 
@@ -111,10 +129,13 @@ export default function AdminHeroCarouselPage() {
     Object.entries(form).forEach(([key, value]) => {
       if (key === 'is_active') body.append(key, String(value));
       else if (key === 'title') body.append(key, String(value).trim());
+      else if (form.media_type === 'IMAGE' && (key === 'video_url' || key === 'mobile_video_url')) return;
       else if (String(value).trim()) body.append(key, String(value).trim());
     });
     if (imageFile) body.append('image', imageFile);
     if (mobileImageFile) body.append('mobile_image', mobileImageFile);
+    if (videoFile) body.append('video', videoFile);
+    if (mobileVideoFile) body.append('mobile_video', mobileVideoFile);
 
     setSaving(true);
     setError('');
@@ -185,7 +206,13 @@ export default function AdminHeroCarouselPage() {
               {slides.map((slide) => (
                 <div key={slide.id} className="grid gap-4 p-5 lg:grid-cols-[160px_minmax(0,1fr)_auto]">
                   <div className="relative aspect-[16/9] overflow-hidden rounded-xl bg-white/5">
-                    <Image src={slide.image_url} alt={slide.alt_text || slide.title || 'Hero carousel slide'} fill sizes="160px" className="object-cover" />
+                    {slide.media_type === 'VIDEO' && slide.video_url ? (
+                      <video src={slide.video_url} poster={slide.image_url ?? undefined} muted playsInline className="h-full w-full object-cover" />
+                    ) : slide.image_url ? (
+                      <Image src={slide.image_url} alt={slide.alt_text || slide.title || 'Hero carousel slide'} fill sizes="160px" className="object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-white/35">No media</div>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -195,6 +222,9 @@ export default function AdminHeroCarouselPage() {
                       <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/45">
                         Order {slide.display_order ?? '-'}
                       </span>
+                      <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-xs text-purple-200">
+                        {slide.media_type ?? 'IMAGE'}
+                      </span>
                     </div>
                     <h3 className="truncate text-lg font-bold">{slide.title || 'Image-only slide'}</h3>
                     {slide.subtitle && <p className="truncate text-sm text-white/60">{slide.subtitle}</p>}
@@ -202,7 +232,7 @@ export default function AdminHeroCarouselPage() {
                     <p className="mt-2 text-xs text-white/35">{slide.text_position ?? 'LEFT'} · {slide.autoplay_seconds ?? 6}s</p>
                   </div>
                   <div className="flex flex-wrap items-start gap-2 lg:flex-col">
-                    <button type="button" onClick={() => { setEditing(slide); setForm(slideToForm(slide)); setImageFile(null); setMobileImageFile(null); }} className="rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-200 hover:bg-blue-500/20">
+                    <button type="button" onClick={() => { setEditing(slide); setForm(slideToForm(slide)); setImageFile(null); setMobileImageFile(null); setVideoFile(null); setMobileVideoFile(null); }} className="rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-200 hover:bg-blue-500/20">
                       Edit
                     </button>
                     <button type="button" disabled={processingId === slide.id} onClick={() => handleToggle(slide)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/10 disabled:opacity-50">
@@ -221,14 +251,36 @@ export default function AdminHeroCarouselPage() {
         <form onSubmit={handleSubmit} className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
           <h2 className="mb-5 text-lg font-semibold">{editing ? 'Edit slide' : 'New slide'}</h2>
           <div className="space-y-4">
+            <Field label="Media type">
+              <select value={form.media_type} onChange={(e) => updateForm('media_type', e.target.value as HeroMediaType)} className={inputClass}>
+                <option value="IMAGE">Image</option>
+                <option value="VIDEO">Video</option>
+              </select>
+            </Field>
             <Field label="Title"><input value={form.title} onChange={(e) => updateForm('title', e.target.value)} placeholder="Optional" className={inputClass} /></Field>
             <Field label="Eyebrow"><input value={form.eyebrow} onChange={(e) => updateForm('eyebrow', e.target.value)} className={inputClass} /></Field>
             <Field label="Subtitle"><input value={form.subtitle} onChange={(e) => updateForm('subtitle', e.target.value)} className={inputClass} /></Field>
             <Field label="Description"><textarea value={form.description} onChange={(e) => updateForm('description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></Field>
-            <Field label="Desktop image"><input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} className={inputClass} /></Field>
-            <Field label="Desktop image URL"><input value={form.image_url} onChange={(e) => updateForm('image_url', e.target.value)} className={inputClass} /></Field>
-            <Field label="Mobile image"><input type="file" accept="image/*" onChange={(e) => setMobileImageFile(e.target.files?.[0] ?? null)} className={inputClass} /></Field>
-            <Field label="Mobile image URL"><input value={form.mobile_image_url} onChange={(e) => updateForm('mobile_image_url', e.target.value)} className={inputClass} /></Field>
+            <Field label={form.media_type === 'VIDEO' ? 'Desktop poster image' : 'Desktop image'}>
+              <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} className={inputClass} />
+            </Field>
+            <Field label={form.media_type === 'VIDEO' ? 'Desktop poster image URL' : 'Desktop image URL'}>
+              <input value={form.image_url} onChange={(e) => updateForm('image_url', e.target.value)} className={inputClass} />
+            </Field>
+            <Field label={form.media_type === 'VIDEO' ? 'Mobile poster image' : 'Mobile image'}>
+              <input type="file" accept="image/*" onChange={(e) => setMobileImageFile(e.target.files?.[0] ?? null)} className={inputClass} />
+            </Field>
+            <Field label={form.media_type === 'VIDEO' ? 'Mobile poster image URL' : 'Mobile image URL'}>
+              <input value={form.mobile_image_url} onChange={(e) => updateForm('mobile_image_url', e.target.value)} className={inputClass} />
+            </Field>
+            {form.media_type === 'VIDEO' && (
+              <>
+                <Field label="Desktop video"><input type="file" accept="video/*" onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)} className={inputClass} /></Field>
+                <Field label="Desktop video URL"><input value={form.video_url} onChange={(e) => updateForm('video_url', e.target.value)} className={inputClass} /></Field>
+                <Field label="Mobile video"><input type="file" accept="video/*" onChange={(e) => setMobileVideoFile(e.target.files?.[0] ?? null)} className={inputClass} /></Field>
+                <Field label="Mobile video URL"><input value={form.mobile_video_url} onChange={(e) => updateForm('mobile_video_url', e.target.value)} className={inputClass} /></Field>
+              </>
+            )}
             <Field label="Alt text"><input value={form.alt_text} onChange={(e) => updateForm('alt_text', e.target.value)} className={inputClass} /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Link URL"><input value={form.link_url} onChange={(e) => updateForm('link_url', e.target.value)} className={inputClass} /></Field>

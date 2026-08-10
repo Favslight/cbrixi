@@ -1,0 +1,54 @@
+# Web app and generated output are not needed for mobile EAS builds.
+smart/
+.next/
+
+# Dependencies are installed by EAS from lockfiles.
+node_modules/
+mobile/node_modules/
+
+# Local Expo state and generated build output.
+mobile/.expo/
+mobile/dist/
+mobile/build/
+mobile/web-build/
+
+# Native build artifacts created locally by prebuild or native tooling.
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/ios/build/
+mobile/ios/Pods/
+
+# Environment files and local machine state.
+.env
+.env.*
+mobile/.env
+mobile/.env.*
+!mobile/.env.example
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test, coverage, and cache output.
+coverage/
+mobile/coverage/
+.nyc_output/
+mobile/.nyc_output/
+.jest/
+mobile/.jest/
+.turbo/
+mobile/.turbo/
+.cache/
+mobile/.cache/
+.parcel-cache/
+mobile/.parcel-cache/
+
+# Editor, OS, and repo metadata that is not needed for cloud builds.
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

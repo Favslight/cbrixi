@@ -140,6 +140,13 @@ export async function logoutUser(token: string): Promise<void> {
   }
 }
 
+export async function deleteUserAccount(token: string): Promise<{ success?: boolean; message?: string }> {
+  return apiRequest<{ success?: boolean; message?: string }>('/user/account', {
+    method: 'DELETE',
+    token,
+  });
+}
+
 export async function signupUser(payload: SignupPayload): Promise<{ message?: string }> {
   return apiRequest<{ message?: string }>('/user/signup', {
     method: 'POST',

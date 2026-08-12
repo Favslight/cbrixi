@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -23,6 +25,7 @@ import { ScreenPreloader } from '../components/ScreenPreloader';
 import { TextField } from '../components/TextField';
 import { colors, gradients } from '../constants/theme';
 import {
+  deleteUserAccount,
   fetchUserProfile,
   logoutUser,
   updateUserProfile,
@@ -49,6 +52,14 @@ type ProfileForm = {
   email: string;
 };
 
+const SESSION_STORAGE_KEYS = [
+  storage.keys.userToken,
+  storage.keys.adminToken,
+  storage.keys.userData,
+  storage.keys.adminName,
+  storage.keys.favoriteProducts,
+];
+
 function toNaira(value: string | number | undefined | null) {
   return `₦${Number(value ?? 0).toLocaleString()}`;
 }
@@ -67,6 +78,9 @@ export function ProfileScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [referral, setReferral] = useState<ReferralData | null>(null);
   const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
@@ -184,13 +198,53 @@ export function ProfileScreen({ navigation }: Props) {
     if (token) {
       await logoutUser(token);
     }
-    await storage.multiRemove([
-      storage.keys.userToken,
-      storage.keys.adminToken,
-      storage.keys.userData,
-      storage.keys.adminName,
-    ]);
+    await storage.multiRemove(SESSION_STORAGE_KEYS);
     navigation.replace('Login');
+  };
+
+  const closeDeleteModal = () => {
+    if (deletingAccount) return;
+    setDeleteModalVisible(false);
+    setDeleteConfirmation('');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation.trim() !== 'DELETE' || deletingAccount) return;
+
+    const token = await storage.getString(storage.keys.userToken);
+    if (!token) {
+      await storage.multiRemove(SESSION_STORAGE_KEYS);
+      navigation.replace('Login');
+      return;
+    }
+
+    setDeletingAccount(true);
+    setError('');
+    setSuccess('');
+    try {
+      await deleteUserAccount(token);
+      setDeleteModalVisible(false);
+      setDeleteConfirmation('');
+      await storage.multiRemove(SESSION_STORAGE_KEYS);
+      navigation.replace('Login');
+    } catch (deleteError) {
+      const status =
+        deleteError && typeof deleteError === 'object' && 'status' in deleteError
+          ? Number((deleteError as { status?: number }).status)
+          : undefined;
+
+      if (status === 401 || status === 404) {
+        await storage.multiRemove(SESSION_STORAGE_KEYS);
+        setDeleteModalVisible(false);
+        setDeleteConfirmation('');
+        navigation.replace('Login');
+        return;
+      }
+
+      setError(toErrorMessage(deleteError, 'Unable to delete account'));
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   const handlePayoutSubmit = async () => {
@@ -580,11 +634,84 @@ export function ProfileScreen({ navigation }: Props) {
                 </>
               ) : null}
             </View>
+
+            <View style={styles.dangerSection}>
+              <View style={styles.dangerCopy}>
+                <Text style={styles.dangerTitle}>Delete account</Text>
+                <Text style={styles.dangerText}>
+                  Permanently delete your account and related account data.
+                </Text>
+              </View>
+              <Pressable
+                style={styles.deleteAccountBtn}
+                onPress={() => {
+                  setError('');
+                  setSuccess('');
+                  setDeleteModalVisible(true);
+                }}
+              >
+                <Ionicons name="trash-outline" size={16} color="#FCA5A5" />
+                <Text style={styles.deleteAccountText}>Delete account</Text>
+              </Pressable>
+            </View>
             </View>
           </ScrollView>
           <BottomNav active="Profile" navigation={navigation} />
         </View>
       </SafeAreaView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={deleteModalVisible}
+        onRequestClose={closeDeleteModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="warning-outline" size={24} color="#FCA5A5" />
+            </View>
+            <Text style={styles.modalTitle}>Delete account</Text>
+            <Text style={styles.modalText}>
+              This will permanently delete your account and related account data. This action cannot be undone.
+            </Text>
+            <Text style={styles.confirmLabel}>Type DELETE to continue</Text>
+            <TextInput
+              value={deleteConfirmation}
+              onChangeText={setDeleteConfirmation}
+              editable={!deletingAccount}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="DELETE"
+              placeholderTextColor={colors.textMuted}
+              style={styles.confirmInput}
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalCancelBtn, deletingAccount && styles.disabledBtn]}
+                onPress={closeDeleteModal}
+                disabled={deletingAccount}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalDeleteBtn,
+                  (deleteConfirmation.trim() !== 'DELETE' || deletingAccount) && styles.disabledBtn,
+                ]}
+                onPress={handleDeleteAccount}
+                disabled={deleteConfirmation.trim() !== 'DELETE' || deletingAccount}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.modalDeleteText}>Permanently delete</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </AppBackground>
   );
 }
@@ -940,5 +1067,133 @@ const styles = StyleSheet.create({
     color: '#93C5FD',
     textAlign: 'center',
     fontSize: 13,
+  },
+  dangerSection: {
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(239,68,68,0.24)',
+    paddingTop: 18,
+    gap: 12,
+  },
+  dangerCopy: {
+    gap: 4,
+  },
+  dangerTitle: {
+    color: '#FCA5A5',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  dangerText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  deleteAccountBtn: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.35)',
+    backgroundColor: 'rgba(239,68,68,0.14)',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteAccountText: {
+    color: '#FCA5A5',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(2,6,23,0.78)',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.28)',
+    backgroundColor: '#0F172A',
+    padding: 18,
+    gap: 12,
+  },
+  modalIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239,68,68,0.14)',
+  },
+  modalTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  confirmLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  confirmInput: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(2,6,23,0.55)',
+    color: colors.textPrimary,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  modalDeleteText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  disabledBtn: {
+    opacity: 0.5,
   },
 });

@@ -7,6 +7,17 @@ import Navbar from "../../../components/Navbar";
 import ReferralsDashboard from "./ReferralsDashboard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.cbrixi.com";
+const CONFIRM_DELETE_TEXT = "DELETE";
+const USER_SESSION_KEYS = [
+  "userToken",
+  "userData",
+  "cart",
+  "cartItems",
+  "orders",
+  "notifications",
+  "receipts",
+  "favoriteProducts",
+];
 
 interface UserProfile {
   firstname: string;
@@ -27,6 +38,13 @@ export default function ProfilePage() {
     email: "",
   });
   const [success, setSuccess] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const clearUserSession = () => {
+    USER_SESSION_KEYS.forEach((key) => localStorage.removeItem(key));
+  };
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -104,9 +122,53 @@ export default function ProfilePage() {
     } catch {
       console.error("Logout error");
     } finally {
-      localStorage.removeItem("userToken");
-      localStorage.removeItem("userData");
+      clearUserSession();
       window.location.href = "/";
+    }
+  };
+
+  const closeDeleteModal = () => {
+    if (deleteLoading) return;
+    setDeleteModalOpen(false);
+    setDeleteConfirmation("");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation.trim() !== CONFIRM_DELETE_TEXT || deleteLoading) return;
+
+    const token = localStorage.getItem("userToken");
+    if (!token) {
+      clearUserSession();
+      window.location.href = "/auth/login";
+      return;
+    }
+
+    setDeleteLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch(`${API_URL}/user/account`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 404) {
+          clearUserSession();
+          window.location.href = "/auth/login";
+          return;
+        }
+        throw new Error(data?.message || "Unable to delete account");
+      }
+
+      clearUserSession();
+      window.location.href = "/";
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete account");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -193,8 +255,72 @@ export default function ProfilePage() {
           {/* Referrals Section */}
           <ReferralsDashboard />
 
+          <section className="mt-10 border-t border-red-500/20 pt-8">
+            <div className="flex flex-col gap-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-red-200">Delete account</h2>
+                <p className="mt-1 text-sm leading-6 text-white/60">
+                  Permanently delete your account and related account data.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setSuccess("");
+                  setDeleteModalOpen(true);
+                }}
+                className="rounded-xl border border-red-400/30 bg-red-500/20 px-5 py-3 text-sm font-bold text-red-200 transition-all hover:bg-red-500/30"
+              >
+                Delete account
+              </button>
+            </div>
+          </section>
+
         </motion.div>
       </div>
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-red-500/30 bg-[#101522] p-6 shadow-2xl shadow-black/40">
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15 text-2xl text-red-200">
+              !
+            </div>
+            <h2 className="text-2xl font-bold text-white">Delete account</h2>
+            <p className="mt-3 text-sm leading-6 text-white/65">
+              This will permanently delete your account and related account data. This action cannot be undone.
+            </p>
+            <label className="mt-6 block text-xs font-bold uppercase tracking-wide text-white/45">
+              Type DELETE to continue
+            </label>
+            <input
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              disabled={deleteLoading}
+              placeholder="DELETE"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-bold text-white outline-none transition-all placeholder:text-white/25 focus:ring-2 focus:ring-red-500/40 disabled:opacity-60"
+            />
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deleteLoading}
+                className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white/70 transition-all hover:bg-white/10 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading || deleteConfirmation.trim() !== CONFIRM_DELETE_TEXT}
+                className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleteLoading ? "Deleting..." : "Permanently delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CbrixiLogo from '@/components/CbrixiLogo';
+import MarketplaceGate from '@/components/MarketplaceGate';
 import MobileNavMenu from '@/components/MobileNavMenu';
 import { PlacementBanner } from '@/components/campaigns/HeroBanner';
 import { Product } from '@/lib/productsStore';
@@ -46,7 +47,15 @@ const mapProducts = (list: Product[]): Product[] =>
     in_stock: p.in_stock !== false,
   }));
 
-export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ProductPage(props: { params: Promise<{ id: string }> }) {
+  return (
+    <MarketplaceGate>
+      <ProductPageContent {...props} />
+    </MarketplaceGate>
+  );
+}
+
+function ProductPageContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
   const [product, setProduct] = useState<Product | null>(null);

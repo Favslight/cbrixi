@@ -23,6 +23,7 @@ export default function WeeklyShowcase() {
   const [products, setProducts] = useState<ShowcaseProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +33,13 @@ export default function WeeklyShowcase() {
       setError(false);
       try {
         const res = await fetch(`${API_URL}/products`);
+        if (res.status === 423) {
+          if (!cancelled) {
+            setProducts([]);
+            setLocked(true);
+          }
+          return;
+        }
         if (!res.ok) throw new Error('Failed to load products');
         const data = await res.json();
         const list = (data.products || []).slice(0, 3).map((p: any) => ({
@@ -108,7 +116,11 @@ export default function WeeklyShowcase() {
       <section className="relative z-10 mt-2 pb-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-10">
           <p className="text-white/50 text-sm">
-            {error ? 'Could not load featured products.' : 'No featured products available yet.'}
+            {locked
+              ? 'Our marketplace is under review. Please check back later.'
+              : error
+                ? 'Could not load featured products.'
+                : 'No featured products available yet.'}
           </p>
           <Link href="/marketplace" className="mt-3 inline-block text-blue-400 text-sm font-semibold hover:text-blue-300">
             Browse marketplace

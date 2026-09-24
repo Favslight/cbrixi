@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import Navbar from '../../../../components/Navbar';
+import MarketplaceGate from '../../../../components/MarketplaceGate';
 import { PlacementBanner } from '../../../../components/campaigns/HeroBanner';
 import { formatMoney, getSellingPrice, hasActiveDiscount } from '@/lib/pricing';
 
@@ -189,6 +190,14 @@ type CategoryProduct = {
 };
 
 export default function CategoryPage() {
+  return (
+    <MarketplaceGate>
+      <CategoryPageContent />
+    </MarketplaceGate>
+  );
+}
+
+function CategoryPageContent() {
   const params = useParams();
   const slug = typeof params?.category === 'string' ? params.category : '';
   const data = CATEGORIES[slug];

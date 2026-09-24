@@ -16,6 +16,8 @@ const navItems = [
   { label: 'Orders', href: '/admin/orders', icon: OrdersIcon },
   { label: 'Users', href: '/admin/users', icon: UsersIcon },
   { label: 'Payments', href: '/admin/payments', icon: PaymentsIcon },
+  { label: 'Installments', href: '/admin/installments', icon: InstallmentsIcon },
+  { label: 'Marketplace', href: '/admin/marketplace', icon: MarketplaceIcon },
   { label: 'Receipts', href: '/admin/receipts', icon: ReceiptsIcon },
   { label: 'Receipt Creator', href: '/admin/receipt-creator', icon: ReceiptsIcon },
   { label: 'Support', href: '/admin/support', icon: SupportIcon },
@@ -187,6 +189,21 @@ function PaymentsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+    </svg>
+  );
+}
+function InstallmentsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 3v4m8-4v4M3 10h18M8 15l2 2 4-4" />
+    </svg>
+  );
+}
+function MarketplaceIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9l1.5-5h15L21 9M3 9h18M3 9v11h18V9M9 20v-6h6v6" />
     </svg>
   );
 }

@@ -1,4 +1,5 @@
 import Marketplace from '../../../components/Marketplace';
+import MarketplaceGate from '../../../components/MarketplaceGate';
 import Link from 'next/link';
 import CbrixiLogo from '../../../components/CbrixiLogo';
 import { PlacementBanner } from '../../../components/campaigns/HeroBanner';
@@ -12,12 +13,14 @@ const FOOTER_CATEGORIES = [
 
 export default function MarketplacePage() {
   return (
-    <main className="relative min-h-screen z-0">
-      <PlacementBanner placement="TOP_BANNER" compact />
-      <Marketplace />
-      <PlacementBanner placement="BOTTOM_BANNER" />
-      <Footer />
-    </main>
+    <MarketplaceGate>
+      <main className="relative min-h-screen z-0">
+        <PlacementBanner placement="TOP_BANNER" compact />
+        <Marketplace />
+        <PlacementBanner placement="BOTTOM_BANNER" />
+        <Footer />
+      </main>
+    </MarketplaceGate>
   );
 }
 
